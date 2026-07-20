@@ -1,5 +1,7 @@
 # Usage guide
 
+**English** · [Русский](USAGE.ru.md)
+
 How to drive the Bitrix24 MCP tools. This is client-agnostic — it assumes only
 that your agent or code speaks MCP and can call the server's tools. For wiring
 the server into a specific client, see the connection section of the README.

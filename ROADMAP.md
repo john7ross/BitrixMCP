@@ -1,5 +1,7 @@
 # Roadmap & status
 
+**English** · [Русский](ROADMAP.ru.md)
+
 ## Status: feature-complete (v0.1.0)
 
 The tool surface is closed for this release. 87 typed tools across 15 domains,

@@ -1,5 +1,7 @@
 # Architecture
 
+**English** · [Русский](ARCHITECTURE.ru.md)
+
 `bitrix_mcp` is a stateless gateway that exposes the Bitrix24 REST API as MCP
 tools. It has one job: translate MCP tool calls into authenticated Bitrix REST
 calls and return the results faithfully. It holds no database and no session

@@ -1,5 +1,7 @@
 # bitrix-mcp
 
+**English** · [Русский](README.ru.md)
+
 Universal, full-featured, portable **MCP server for the Bitrix24 REST API**.
 Read **and** write. Not tied to any one application — it's a generic Bitrix24
 gateway that any MCP client or agent can mount (Claude Code, Claude Desktop,
@@ -150,3 +152,27 @@ Diagrams are regenerated with `java -jar plantuml.jar -tpng docs/diagrams/*.puml
   and reports `truncated: true` when it hits the cap — it never silently stops short.
 - The read-only guard classifies writes by method verb; typed write tools are
   always classified correctly. `b24_call`/`b24_batch` use the heuristic.
+
+## Support author
+
+<p align="center">
+  <img src="donate-qr.png" alt="Donate QR" width="200"/>
+</p>
+
+BTC: bc1q3frrup5neh7nhfg944etu2agd4j9u0vg3jyee6
+
+ETH(Arbitrum): 0x43B349d8Cea83215D707EBa3bc35e9917f746b0a
+
+TRX: THSzvy49KNeqRjXsGkurh2A5G4avV4RgN4
+
+XRP: rLWZjS3DMupC4ZdXCX3BVYn4dEtC3iNhgy
+
+SOL: 3xwfybxJ6Tz5t6pjBBkL5yYQCZo6wfbv932UNA4ThdP8
+
+ADA: addr1q926ys75jp5wn2pv32a3t8r8pdhr7w02v0t9j4a8pmg0ruww5rlkctu4lnz2hfcwa5qfn3zhsd0s23r22uqwzx9gu6cq5c4e76
+
+TON: UQC4qlAOD9Nly4K_66GJ_yCsSM3x2sB0vZ2GrBQbc--gZUui
+
+DOGE: DTjNYmbtymzcjUiV4MsZY8MP4dM7MJ6qLC
+
+XMR: 44qRqM6YtnxXUhkgCFqDDrKMPjWriu69FLBoop8Kwp7e1VQsBUJoVQ8JYQjfMV5C6uidTUgSSyoJ65mq8aYG2esZ1rrqfwt

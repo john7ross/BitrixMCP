@@ -1,0 +1,28 @@
+@startuml bitrix_mcp_component
+' C4 component view of the Bitrix24 MCP server.
+' Render: java -jar plantuml.jar -tpng docs/diagrams/component.puml
+!include <C4/C4_Component>
+
+title Bitrix24 MCP server - Component diagram (C4)
+
+Person(agent, "MCP client / agent", "Claude Code, Desktop, Cursor, or custom agent code")
+System_Ext(portal, "Bitrix24 portal", "REST API over an incoming webhook (PHP)")
+
+System_Boundary(mcp, "bitrix_mcp (Python package)") {
+  Component(entry, "Entry point", "__main__ / bitrix-mcp", "Parses transport flags; runs stdio or Streamable HTTP")
+  Component(server, "Server + tool registry", "FastMCP", "Holds instructions; imports 16 tool modules; exposes 87 tools")
+  Component(tools, "Tool modules", "tools/*.py", "Typed tools per domain: crm, tasks, scrum, calendar, disk, users, groups, messaging, lists, catalog, sale, documents, bizproc, telephony, universal")
+  Component(runtime, "Runtime layer", "runtime.py", "Webhook resolution, read-only guard, JSON formatting, shared param types")
+  Component(client, "Bitrix client", "client.py + httpx", "JSON POST calls, pagination, php_query for batch, error surfacing, write classifier")
+  Component(config, "Config", "config.py", "Reads env: webhook, read-only, timeout, page cap")
+}
+
+Rel(agent, entry, "MCP protocol", "stdio / Streamable HTTP")
+Rel(entry, server, "boots + runs")
+Rel(server, tools, "registers (decorator import)")
+Rel(tools, runtime, "run_call / run_list")
+Rel(runtime, config, "reads settings")
+Rel(runtime, client, "constructs + calls")
+Rel(client, portal, "HTTPS POST /rest/<id>/<token>/method.json", "JSON")
+
+@enduml

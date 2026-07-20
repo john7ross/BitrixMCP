@@ -1,0 +1,31 @@
+[project]
+name = "bitrix-mcp"
+version = "0.1.0"
+description = "Universal, full-featured, portable MCP server for the Bitrix24 REST API (CRM, tasks, scrum, calendar, disk, users, messaging) — read and write."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Sergey Lebedev" }]
+keywords = ["mcp", "bitrix24", "bitrix", "crm", "rest", "model-context-protocol"]
+dependencies = [
+    "httpx>=0.27",
+    "mcp[cli]>=1.2.0",
+]
+
+[project.scripts]
+bitrix-mcp = "bitrix_mcp.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bitrix_mcp"]
+
+[tool.uv]
+package = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

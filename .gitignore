@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Secrets — never commit real webhooks/tokens
+.env
+*.env
+!.env.example
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+.claude/
+
+# Documentation
+bitrix24-mcp-notes.md
+CONNECT.md

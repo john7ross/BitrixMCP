@@ -42,6 +42,12 @@ Field codes differ by method (CRM uses `UPPER_CASE`; the modern `crm.item.*` and
 `catalog.*` use `camelCase`). Use the `*_fields` tools (e.g. `b24_crm_fields`) to
 discover exact codes and enum ids before writing.
 
+**Exception:** `b24_department_get` — Bitrix's `department.get` has no
+server-side filter at all (confirmed live: any `filter`, including `ID`, was
+silently ignored and the whole department tree came back). The tool filters
+client-side instead, so `filter`/`ID` still work as documented — it just costs
+one extra full fetch under the hood.
+
 ## Pagination
 
 List tools return an envelope:
@@ -103,6 +109,20 @@ debugging. Unset it to allow writes.
 - **Download a Disk file:** `b24_disk_file_content` file_id=… (returns base64;
   guarded by `max_size_mb`).
 - **Post to a chat:** `b24_im_message_add` dialog_id=`chat123` or a user id.
+- **Invite people to a calendar event:** pass `extra: {"attendees": [id, ...]}`
+  to `b24_calendar_event_add` (or `fields` on `b24_calendar_event_update`) —
+  `is_meeting` is set for you automatically whenever `attendees` is non-empty.
+
+## Known limitations
+
+- **Disk downloads need the server's IP allowed by the portal.**
+  `b24_disk_file_content` resolves `DOWNLOAD_URL` and fetches it server-side, but
+  some portals' WAF returns `403 Forbidden` (HTML) to that fetch when it comes
+  from an IP outside the portal's trusted network — even though the file was
+  just uploaded by the same webhook and `b24_disk_file_get` metadata works fine.
+  This is a portal-side network/WAF policy, not a bug in the client: ask the
+  portal admin to allowlist the host running `bitrix-mcp`, or run the server
+  from a network the portal already trusts.
 
 ## SPA / Smart Processes
 

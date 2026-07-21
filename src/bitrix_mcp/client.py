@@ -195,10 +195,15 @@ class BitrixClient:
 
         # Bitrix reports method-level failures via {error, error_description},
         # usually with HTTP 400. Surface both; never swallow into empty success.
-        if isinstance(data, dict) and data.get("error"):
+        # Note: Bitrix sometimes sends "error": "" (empty string) alongside a
+        # real error_description (e.g. plain "Access denied." on a missing
+        # scope) — check key presence, not truthiness, or that case falls
+        # through to the generic HTTP_xxx branch below and loses its code.
+        if isinstance(data, dict) and ("error" in data or "error_description" in data):
+            code = data.get("error") or None
             raise BitrixError(
-                data.get("error_description") or data.get("error"),
-                code=str(data.get("error")),
+                data.get("error_description") or code or "Unknown Bitrix error",
+                code=str(code) if code else None,
                 method=method,
                 status=resp.status_code,
             )

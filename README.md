@@ -25,6 +25,9 @@ fixed *by design*, not patched around:
 | `calendar_list` returned 0 without explicit `ownerId` | `owner_id` **auto-resolves** to the acting user. |
 | Scrum kanban read from the wrong place | Correct flow baked in: active-sprint filter + `tasks.api.scrum.kanban.getStages` (`b24_scrum_board` does it in one call). |
 | Fragile `mcp-remote` SSE session drops / hangs | Prefer **stdio** (no bridge) or **stateless Streamable HTTP**. |
+| `department.get` has **no server-side filter at all** (a Bitrix API limitation, undocumented) — any `filter` was silently ignored and the whole department tree (95+ rows) came back regardless | `b24_department_get` filters **client-side** after a full fetch, so `filter`/`ID` genuinely narrow the result instead of quietly dumping everything. |
+| Bitrix sometimes reports a failure as `{"error": "", "error_description": "Access denied."}` — an **empty-string** error code — which a naive truthiness check (`if data.get("error")`) misses, losing the code and message to a generic HTTP-status fallback | Checked by **key presence**, not truthiness — `code`/`message` always reflect what Bitrix actually said. |
+| `calendar.event.add` / `.update` silently **drop `attendees`** unless `is_meeting` is also set — 200 OK, event created, nobody invited, no error anywhere | `is_meeting` is **auto-set to `'Y'`** whenever `attendees` is non-empty and not already specified. |
 
 ## Install
 

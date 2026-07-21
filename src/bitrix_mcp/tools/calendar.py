@@ -111,6 +111,11 @@ async def b24_calendar_event_add(
             params["section"] = section_id
         if extra:
             params.update(extra)
+        # Bitrix silently drops `attendees` (200 OK, event created, nobody
+        # invited) unless `is_meeting` is also set — never leave that as a
+        # quiet no-op when the caller clearly wants a meeting.
+        if params.get("attendees") and "is_meeting" not in params:
+            params["is_meeting"] = "Y"
         return await run_call(ctx, "calendar.event.add", params,
                               webhook_url=webhook_url, personal_webhook=personal_webhook, is_write=True, unwrap=True)
     except Exception as exc:  # noqa: BLE001
@@ -133,6 +138,10 @@ async def b24_calendar_event_update(
         owner = await _resolve_owner(client, owner_id, owner_type)
         params: dict = {"type": owner_type, "ownerId": owner, "id": id}
         params.update(fields)
+        # Same silent-drop trap as calendar.event.add: attendees without
+        # is_meeting is accepted and ignored, not rejected.
+        if params.get("attendees") and "is_meeting" not in params:
+            params["is_meeting"] = "Y"
         return await run_call(ctx, "calendar.event.update", params,
                               webhook_url=webhook_url, personal_webhook=personal_webhook, is_write=True, unwrap=True)
     except Exception as exc:  # noqa: BLE001

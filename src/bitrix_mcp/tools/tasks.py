@@ -47,6 +47,13 @@ async def b24_tasks_list(
     Common select: ['ID','TITLE','STATUS','RESPONSIBLE_ID','GROUP_ID','CREATED_BY',
     'DEADLINE','STAGE_ID','COMMENTS_COUNT','TAGS'].
 
+    Caveat for Scrum sprint boards (confirmed live, not just theoretical):
+    STAGE_ID here is reliable for a *regular* group kanban, but for a task on
+    an active sprint it goes stale the moment the card is moved the correct
+    way (b24_scrum_task_move / a real drag on the board) — Bitrix tracks that
+    move in a separate structure with no public method to read it back.
+    Filtering by STAGE_ID on a sprint board is approximate at best.
+
     Returns:
         JSON pagination envelope {items, count, total, next, has_more, truncated}.
     """
@@ -100,7 +107,15 @@ async def b24_task_update(
     personal_webhook: PersonalWebhook = None,
     ctx: Context | None = None,
 ) -> str:
-    """Update a task (tasks.task.update). Also used to move kanban stage (STAGE_ID)."""
+    """Update a task (tasks.task.update).
+
+    Also used to move kanban stage (STAGE_ID) — but only for a *regular*
+    group's kanban (task.stages.get). For a task on an active Scrum sprint
+    board, STAGE_ID here is accepted with no error and reads back correctly,
+    but does NOT relocate the card on the real board (confirmed live: reload
+    the page and it's still in the old column). Use b24_scrum_task_move
+    instead when the task's sprintId is set.
+    """
     return await run_call(ctx, "tasks.task.update", {"taskId": id, "fields": fields},
                           webhook_url=webhook_url, personal_webhook=personal_webhook, is_write=True, unwrap=True)
 

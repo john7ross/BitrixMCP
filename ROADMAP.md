@@ -4,7 +4,7 @@
 
 ## Status: feature-complete (v0.1.0)
 
-The tool surface is closed for this release. 87 typed tools across 15 domains,
+The tool surface is closed for this release. 88 typed tools across 15 domains,
 plus the universal `b24_call` / `b24_batch` backbone (100% API reach), read and
 write, both transports. Offline verification is green; live verification against
 a real portal has been run end to end (see History) — reads across every domain
@@ -39,6 +39,17 @@ created, verified, and deleted, nothing pre-existing touched).
   bug): `b24_disk_file_content` needs the server's egress IP allowed by the
   portal's WAF, or file *downloads* 403 even though metadata calls succeed —
   ask the portal admin to allowlist the host running the server.
+- **Scrum sprint board move/read, root-caused with the operator live on a real
+  board.** Moving a card via `tasks.task.update`'s `STAGE_ID` looked
+  successful (200 OK, correct read-back) but silently didn't relocate the card
+  — verified by watching the actual board, not just the API response. Added
+  `b24_scrum_task_move` (`tasks.api.scrum.kanban.addTask`, Bitrix's
+  board-aware write, found via their official REST docs after the wrong
+  method was ruled out). Further testing then showed the *read* side is also
+  unreliable once a task is moved correctly: `STAGE_ID` on `tasks.task.get`/
+  `.list` goes stale and never updates again, with no public method to read a
+  sprint board's true task-to-column mapping — documented as a known
+  limitation rather than "fixed," since there's no working API to fix it with.
 
 ## Out of scope (by design)
 

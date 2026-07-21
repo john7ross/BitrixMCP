@@ -41,7 +41,7 @@ def test_php_query_empty():
     "crm.deal.add", "crm.item.update", "tasks.task.complete", "tasks.task.delete",
     "disk.folder.uploadfile", "disk.folder.addsubfolder", "sonet_group.create",
     "crm.item.productrow.set", "im.chat.add", "bizproc.workflow.start",
-    "crm.deal.contact.items.set", "log.blogpost.add",
+    "crm.deal.contact.items.set", "log.blogpost.add", "tasks.api.scrum.kanban.addTask",
 ])
 def test_is_write_true(method):
     assert is_write_method(method) is True
@@ -128,7 +128,7 @@ def test_all_tools_register_uniquely():
     from bitrix_mcp.server import mcp
     tools = asyncio.run(mcp.list_tools())
     names = [t.name for t in tools]
-    assert len(names) == 87
+    assert len(names) == 88
     assert len(names) == len(set(names)), "duplicate tool names"
     assert all(n.startswith("b24_") for n in names)
 

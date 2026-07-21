@@ -104,7 +104,11 @@ debugging. Unset it to allow writes.
 - **Resolve a deal stage code to a name:**
   `b24_crm_status_list` entity_id=`DEAL_STAGE` (or `DEAL_STAGE_7` for pipeline 7).
 - **Tasks in a Scrum board column:** `b24_scrum_board` group_id=… to get the
-  active sprint + stages, then `b24_tasks_list` filter `{"GROUP_ID":…, "STAGE_ID":…}`.
+  active sprint + stages, then `b24_tasks_list` filter `{"GROUP_ID":…, "STAGE_ID":…}`
+  — approximate only, see Known limitations below.
+- **Move a task on a Scrum sprint board:** `b24_scrum_task_move` task_id=…
+  sprint_id=… stage_id=… — **not** `b24_task_update` with `STAGE_ID` (accepted,
+  read back correctly, but doesn't move the card — see Known limitations).
 - **Create a task and log time:** `b24_task_add` → then `b24_task_elapsed_add`.
 - **Download a Disk file:** `b24_disk_file_content` file_id=… (returns base64;
   guarded by `max_size_mb`).
@@ -115,6 +119,20 @@ debugging. Unset it to allow writes.
 
 ## Known limitations
 
+- **Scrum sprint boards: `STAGE_ID` is write-unsafe and read-unreliable.**
+  Confirmed live against a production portal. `tasks.task.update` with
+  `STAGE_ID` is accepted with no error and reads back correctly, but for a
+  task on an active sprint it does not move the card on the real board — use
+  `b24_scrum_task_move` (`tasks.api.scrum.kanban.addTask`) instead. Worse: once
+  a task has been moved the *correct* way, its `tasks.task.STAGE_ID` goes
+  stale and stops tracking the board — verified by moving a task twice via
+  `kanban.addTask` and watching `STAGE_ID` never change, with no replication
+  delay. There is no documented `tasks.api.scrum.kanban.*` method to list
+  which tasks are actually in a stage (only `addTask`/`deleteTask`/
+  `getStages`/`getFields` exist), so `b24_tasks_list` filtered by `STAGE_ID`
+  on a sprint board is approximate at best — trust it only for tasks whose
+  stage was last set via `.add`/`.update` and never moved on the real board
+  since.
 - **Disk downloads need the server's IP allowed by the portal.**
   `b24_disk_file_content` resolves `DOWNLOAD_URL` and fetches it server-side, but
   some portals' WAF returns `403 Forbidden` (HTML) to that fetch when it comes

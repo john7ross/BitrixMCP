@@ -14,6 +14,7 @@ from pydantic import Field
 
 from .client import BitrixClient, BitrixError, is_write_method
 from .config import config
+from .sanitize import sanitize
 
 try:  # Context is only needed for HTTP header support; import defensively.
     from mcp.server.fastmcp import Context
@@ -145,7 +146,11 @@ def get_client(ctx: Any, webhook_url: str | None, personal_webhook: str | None) 
 # ---------------------------------------------------------------------------
 
 def _dumps(obj: Any) -> str:
-    return json.dumps(obj, ensure_ascii=False, indent=2, default=str)
+    # Single choke point for every tool's output: credentials are stripped here
+    # so no individual tool has to remember. Bitrix hands webhook URLs back in
+    # ordinary read responses (document generator), and tools echo the resolved
+    # webhook when reporting connection state - both would otherwise leak.
+    return json.dumps(sanitize(obj), ensure_ascii=False, indent=2, default=str)
 
 
 def ok(data: Any) -> str:
@@ -155,7 +160,11 @@ def ok(data: Any) -> str:
 def err(exc: Exception) -> str:
     if isinstance(exc, BitrixError):
         return _dumps(exc.as_dict())
-    return _dumps({"error": True, "code": type(exc).__name__, "message": str(exc)})
+    # Some exceptions carry an empty str() - httpx connection failures in
+    # particular. Reporting that verbatim turns "the network blocked us" into a
+    # blank message, which reads like nothing went wrong at all.
+    message = str(exc) or f"{type(exc).__name__} with no message ({exc!r})"
+    return _dumps({"error": True, "code": type(exc).__name__, "message": message})
 
 
 def guard_write(method: str, *, is_write: bool | None = None) -> None:

@@ -12,7 +12,12 @@ Python/Node).
 - **Транспорты:** `stdio` (по умолчанию, максимально переносимый и надёжный) и
   **Streamable HTTP** (stateless JSON — без хрупкого долгоживущего SSE-моста)
 - **Покрытие:** универсальные `b24_call` / `b24_batch` дают **100%** REST API;
-  87 типизированных инструментов закрывают частые домены с учётом всех нюансов.
+  каталог из официальной доки (1930 методов) подсказывает, какой метод нужен и
+  какие у него параметры; 99 типизированных инструментов закрывают частые домены
+  с учётом всех нюансов.
+- **События портала:** три способа получения — pull-канал (работает из-под NAT
+  и VPN), приёмник исходящего вебхука, поллер — плюс архив с историей и
+  пересылка в Telegram: [docs/EVENTS.ru.md](docs/EVENTS.ru.md)
 
 ## Зачем это и что исправлено
 
@@ -29,6 +34,7 @@ Python/Node).
 | У `department.get` **вообще нет серверного фильтра** (недокументированное ограничение самого Битрикса) — `filter` молча игнорировался, отдавалось всё дерево отделов (95+ строк) целиком | `b24_department_get` фильтрует **на стороне клиента** после полной выгрузки, так что `filter`/`ID` реально сужают результат, а не тихо дампят всё. |
 | Битрикс иногда отдаёт ошибку как `{"error": "", "error_description": "Access denied."}` — с **пустой строкой** в коде ошибки, которую наивная проверка на истинность (`if data.get("error")`) пропускает, теряя код и сообщение в общем HTTP-фоллбэке | Проверяется **наличие ключа**, а не истинность значения — `code`/`message` всегда отражают то, что реально сказал Битрикс. |
 | `calendar.event.add` / `.update` молча **теряют `attendees`**, если не выставлен `is_meeting` — 200 OK, событие создано, никто не приглашён, ошибки нигде нет | `is_meeting` **автоматически выставляется в `'Y'`**, когда `attendees` не пуст и явно не передан. |
+| Перенос задачи на **Scrum-доске спринта** через `STAGE_ID` в `tasks.task.update` принимается без ошибки и корректно читается назад, но карточка **физически не двигается** на реальной доске (проверено вживую: обновление страницы — карточка всё ещё в старой колонке) | Новый `b24_scrum_task_move` вызывает предназначенный именно для доски `tasks.api.scrum.kanban.addTask` — он реально переносит карточку. `b24_task_update`/`b24_tasks_list` теперь документируют эту ловушку, а не тихо вводят в заблуждение. |
 
 ## Установка
 
@@ -106,12 +112,12 @@ claude mcp add -s user --transport http bitrix24 http://HOST:5015/mcp
 (Для удалённого HTTP-инстанса Desktop всё ещё нужен мост `mcp-remote`; вариант с
 stdio выше этого избегает.)
 
-## Каталог инструментов (87)
+## Каталог инструментов (99)
 
 **Универсальные** — `b24_call`, `b24_batch`, `b24_test_connection`, `b24_list_methods`
 **CRM** — `b24_crm_list`, `b24_crm_get`, `b24_crm_fields`, `b24_crm_add`, `b24_crm_update`, `b24_crm_delete`, `b24_crm_timeline_comment_add`, `b24_crm_timeline_comment_list`, `b24_crm_category_list` (воронки), `b24_crm_status_list` (стадии/справочники), `b24_crm_activity_list`, `b24_crm_activity_add`, `b24_crm_activity_delete`, `b24_crm_productrows_get`, `b24_crm_productrows_set`, `b24_crm_currency_list`, `b24_crm_requisite_list`, `b24_crm_deal_contacts_get`, `b24_crm_deal_contacts_set` (классические сущности *и* SPA через `entity_type_id`)
 **Задачи** — `b24_tasks_list`, `b24_task_get`, `b24_task_add`, `b24_task_update`, `b24_task_complete`, `b24_task_delete`, `b24_task_comments_list`, `b24_task_comment_add`, `b24_task_stages_get`, `b24_task_checklist_list`, `b24_task_checklist_add`, `b24_task_elapsed_add`, `b24_task_result_list`
-**Scrum** — `b24_scrum_sprint_list`, `b24_scrum_kanban_stages`, `b24_scrum_board`
+**Scrum** — `b24_scrum_sprint_list`, `b24_scrum_kanban_stages`, `b24_scrum_board`, `b24_scrum_task_move`
 **Календарь** — `b24_calendar_event_list`, `b24_calendar_section_list`, `b24_calendar_event_add`, `b24_calendar_event_update`, `b24_calendar_event_delete`
 **Диск** — `b24_disk_storage_list`, `b24_disk_folder_items`, `b24_disk_file_get`, `b24_disk_file_content` (серверное скачивание → base64), `b24_disk_folder_add`, `b24_disk_file_upload`, `b24_disk_file_delete`
 **Пользователи/структура** — `b24_user_get`, `b24_user_search`, `b24_user_current`, `b24_department_get`

@@ -9,7 +9,23 @@ dist/
 # Secrets — never commit real webhooks/tokens
 .env
 *.env
+.env.*
 !.env.example
+
+# Generated: local checkout of the official REST documentation, used by
+# scripts/build_catalog.py. The catalog it produces IS committed; this is not.
+.docs-cache/
+
+# Event archive — contains real portal payloads: staff emails, phone numbers,
+# LDAP ids. Never commit, even to a private repository.
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Diagnostic output from scripts/ — these captured full webhook URLs before the
+# log redaction filter existed, and there is no reason to track them at all.
+scripts/*.log
+scripts/*.err
 
 # OS / editor
 .DS_Store

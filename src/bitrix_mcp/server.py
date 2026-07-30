@@ -29,9 +29,9 @@ mcp = FastMCP("bitrix24_mcp", instructions=INSTRUCTIONS)
 
 
 _TOOL_MODULES = (
-    "universal", "crm", "tasks", "scrum", "calendar", "disk", "users",
+    "universal", "discovery", "crm", "tasks", "scrum", "calendar", "disk", "users",
     "messaging", "lists", "catalog", "bizproc", "telephony",
-    "groups", "sale", "documents",
+    "groups", "sale", "documents", "events", "telegram",
 )
 
 

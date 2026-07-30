@@ -2,11 +2,16 @@
 
 **English** · [Русский](ARCHITECTURE.ru.md)
 
-`bitrix_mcp` is a stateless gateway that exposes the Bitrix24 REST API as MCP
+`bitrix_mcp` is a gateway that exposes the Bitrix24 REST API as MCP
 tools. It has one job: translate MCP tool calls into authenticated Bitrix REST
-calls and return the results faithfully. It holds no database and no session
-state of its own — each tool call resolves a webhook, makes an HTTP request, and
-formats the response.
+calls and return the results faithfully: each tool call resolves a webhook,
+makes an HTTP request, and formats the response.
+
+With nothing configured it is **fully stateless** — no database, no session
+state. State appears only alongside the event subsystem: enable any of the three
+ways of receiving portal events and one SQLite file joins it, holding the event
+queue, the history archive, poller cursors and agent-adjustable settings. See
+[docs/EVENTS.md](docs/EVENTS.md).
 
 ## Technologies
 
@@ -29,7 +34,7 @@ See [docs/diagrams/bitrix_mcp_component.png](docs/diagrams/bitrix_mcp_component.
   (stateless JSON). These are the two shipped front-ends of the same server.
 - **Server + registry** (`server.py`) — the `FastMCP("bitrix24_mcp")` instance
   carrying the server instructions; imports the 16 tool modules via `importlib`
-  so their `@mcp.tool` decorators register all 87 tools.
+  so their `@mcp.tool` decorators register all 99 tools.
 - **Tool modules** (`tools/*.py`) — one module per domain (universal, crm, tasks,
   scrum, calendar, disk, users, groups, messaging, lists, catalog, sale,
   documents, bizproc, telephony). Each tool is a thin, typed function that builds
@@ -79,13 +84,22 @@ classified correctly).
   long-lived SSE sessions that affected the previous deployment. Bind to
   `127.0.0.1` by default; `--host 0.0.0.0` to expose.
 
-The server is stateless, so horizontal scaling is trivial (run more HTTP
-instances behind a load balancer); the portal itself is the only stateful
-dependency.
+Without the event subsystem the server is stateless, so horizontal scaling is
+trivial (run more HTTP instances behind a load balancer); the portal itself is
+the only stateful dependency.
+
+With the event subsystem enabled that no longer holds: the SQLite file assumes a
+single process. Several instances behind a balancer would either each get their
+own database (and their own share of events) or contend for one file. The right
+shape is one instance with events and the rest without.
 
 ## Coverage model
 
-100% of the REST API is reachable through `b24_call` / `b24_batch`. The 87 typed
+100% of the REST API is reachable through `b24_call` / `b24_batch`, and the
+method catalogue built from the official documentation (`b24_method_search`,
+`b24_method_schema`, `b24_scope_gaps` — see [REQUIREMENTS.md](REQUIREMENTS.md),
+requirement R-1) supplies the missing half: knowing which method to call and
+what it takes. The 99 typed
 tools are an ergonomic layer over the high-traffic domains with the Bitrix quirks
 handled (JSON-body filters, auto `ownerId`, active-sprint kanban, honest errors).
 Long-tail modules (mail, open lines, sale basket writes, app placements) are used

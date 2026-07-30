@@ -11,7 +11,12 @@ Cursor, Windsurf, Cline, or your own Python/Node agent).
 - **Transports:** `stdio` (default, most portable/reliable) and **Streamable HTTP**
   (stateless JSON — no fragile long-lived SSE bridge)
 - **Coverage:** universal `b24_call` / `b24_batch` reach **100%** of the REST API;
-  87 typed tools cover the high-traffic domains with the tricky bits handled.
+  a catalogue built from the official docs (1930 methods) tells the agent which
+  method it needs and what parameters it takes; 99 typed tools cover the
+  high-traffic domains with the tricky bits handled.
+- **Portal events:** three ways to receive them — pull channel (works behind NAT
+  and VPN), outgoing-webhook receiver, poller — plus a history archive and
+  Telegram forwarding: [docs/EVENTS.md](docs/EVENTS.md)
 
 ## Why this exists / what it fixes
 
@@ -28,6 +33,7 @@ fixed *by design*, not patched around:
 | `department.get` has **no server-side filter at all** (a Bitrix API limitation, undocumented) — any `filter` was silently ignored and the whole department tree (95+ rows) came back regardless | `b24_department_get` filters **client-side** after a full fetch, so `filter`/`ID` genuinely narrow the result instead of quietly dumping everything. |
 | Bitrix sometimes reports a failure as `{"error": "", "error_description": "Access denied."}` — an **empty-string** error code — which a naive truthiness check (`if data.get("error")`) misses, losing the code and message to a generic HTTP-status fallback | Checked by **key presence**, not truthiness — `code`/`message` always reflect what Bitrix actually said. |
 | `calendar.event.add` / `.update` silently **drop `attendees`** unless `is_meeting` is also set — 200 OK, event created, nobody invited, no error anywhere | `is_meeting` is **auto-set to `'Y'`** whenever `attendees` is non-empty and not already specified. |
+| Moving a task on a **Scrum sprint board** via `tasks.task.update`'s `STAGE_ID` is accepted with no error and reads back correctly, but the card **does not actually move** on the real board (confirmed live: reload the page, still in the old column) | New `b24_scrum_task_move` calls the board-aware `tasks.api.scrum.kanban.addTask` instead — the one that actually relocates the card. `b24_task_update`/`b24_tasks_list` now document this trap rather than silently mis-teaching it. |
 
 ## Install
 
@@ -104,12 +110,12 @@ claude mcp add -s user --transport http bitrix24 http://HOST:5015/mcp
 (For a remote HTTP instance, Desktop still needs the `mcp-remote` bridge; stdio
 above avoids it entirely.)
 
-## Tool catalog (87)
+## Tool catalog (99)
 
 **Universal** — `b24_call`, `b24_batch`, `b24_test_connection`, `b24_list_methods`
 **CRM** — `b24_crm_list`, `b24_crm_get`, `b24_crm_fields`, `b24_crm_add`, `b24_crm_update`, `b24_crm_delete`, `b24_crm_timeline_comment_add`, `b24_crm_timeline_comment_list`, `b24_crm_category_list` (pipelines), `b24_crm_status_list` (stages/dictionaries), `b24_crm_activity_list`, `b24_crm_activity_add`, `b24_crm_activity_delete`, `b24_crm_productrows_get`, `b24_crm_productrows_set`, `b24_crm_currency_list`, `b24_crm_requisite_list`, `b24_crm_deal_contacts_get`, `b24_crm_deal_contacts_set` (classic entities *and* SPA via `entity_type_id`)
 **Tasks** — `b24_tasks_list`, `b24_task_get`, `b24_task_add`, `b24_task_update`, `b24_task_complete`, `b24_task_delete`, `b24_task_comments_list`, `b24_task_comment_add`, `b24_task_stages_get`, `b24_task_checklist_list`, `b24_task_checklist_add`, `b24_task_elapsed_add`, `b24_task_result_list`
-**Scrum** — `b24_scrum_sprint_list`, `b24_scrum_kanban_stages`, `b24_scrum_board`
+**Scrum** — `b24_scrum_sprint_list`, `b24_scrum_kanban_stages`, `b24_scrum_board`, `b24_scrum_task_move`
 **Calendar** — `b24_calendar_event_list`, `b24_calendar_section_list`, `b24_calendar_event_add`, `b24_calendar_event_update`, `b24_calendar_event_delete`
 **Disk** — `b24_disk_storage_list`, `b24_disk_folder_items`, `b24_disk_file_get`, `b24_disk_file_content` (server-side download → base64), `b24_disk_folder_add`, `b24_disk_file_upload`, `b24_disk_file_delete`
 **Users/structure** — `b24_user_get`, `b24_user_search`, `b24_user_current`, `b24_department_get`

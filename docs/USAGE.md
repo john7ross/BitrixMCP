@@ -104,7 +104,11 @@ debugging. Unset it to allow writes.
 - **Resolve a deal stage code to a name:**
   `b24_crm_status_list` entity_id=`DEAL_STAGE` (or `DEAL_STAGE_7` for pipeline 7).
 - **Tasks in a Scrum board column:** `b24_scrum_board` group_id=… to get the
-  active sprint + stages, then `b24_tasks_list` filter `{"GROUP_ID":…, "STAGE_ID":…}`.
+  active sprint + stages, then `b24_tasks_list` filter `{"GROUP_ID":…, "STAGE_ID":…}`
+  — approximate only, see Known limitations below.
+- **Move a task on a Scrum sprint board:** `b24_scrum_task_move` task_id=…
+  sprint_id=… stage_id=… — **not** `b24_task_update` with `STAGE_ID` (accepted,
+  read back correctly, but doesn't move the card — see Known limitations).
 - **Create a task and log time:** `b24_task_add` → then `b24_task_elapsed_add`.
 - **Download a Disk file:** `b24_disk_file_content` file_id=… (returns base64;
   guarded by `max_size_mb`).
@@ -115,6 +119,20 @@ debugging. Unset it to allow writes.
 
 ## Known limitations
 
+- **Scrum sprint boards: `STAGE_ID` is write-unsafe and read-unreliable.**
+  Confirmed live against a production portal. `tasks.task.update` with
+  `STAGE_ID` is accepted with no error and reads back correctly, but for a
+  task on an active sprint it does not move the card on the real board — use
+  `b24_scrum_task_move` (`tasks.api.scrum.kanban.addTask`) instead. Worse: once
+  a task has been moved the *correct* way, its `tasks.task.STAGE_ID` goes
+  stale and stops tracking the board — verified by moving a task twice via
+  `kanban.addTask` and watching `STAGE_ID` never change, with no replication
+  delay. There is no documented `tasks.api.scrum.kanban.*` method to list
+  which tasks are actually in a stage (only `addTask`/`deleteTask`/
+  `getStages`/`getFields` exist), so `b24_tasks_list` filtered by `STAGE_ID`
+  on a sprint board is approximate at best — trust it only for tasks whose
+  stage was last set via `.add`/`.update` and never moved on the real board
+  since.
 - **Disk downloads need the server's IP allowed by the portal.**
   `b24_disk_file_content` resolves `DOWNLOAD_URL` and fetches it server-side, but
   some portals' WAF returns `403 Forbidden` (HTML) to that fetch when it comes
@@ -128,3 +146,52 @@ debugging. Unset it to allow writes.
 
 For Smart Process items, pass `entity_type_id` to the CRM tools — they switch to
 the modern `crm.item.*` API automatically (e.g. `b24_crm_list` entity_type_id=1030).
+
+## Finding the right method
+
+The Bitrix API has 1930 documented methods. Do not guess a signature — ask:
+
+```
+b24_method_search("call recording attach")   → telephony.externalCall.attachRecord
+b24_method_schema("crm.item.list")           → parameters, types, what is required
+b24_scope_gaps()                             → what this webhook cannot reach
+```
+
+The catalogue is built from the official documentation and includes methods that
+the portal's own `methods` listing omits (`tasks.task.list`, `crm.item.list`,
+`catalog.product.list`, `sale.order.list` and others) — which is exactly why it
+is not built from the portal's response.
+
+`b24_scope_gaps` is what to reach for when a call fails with
+`ERROR_METHOD_NOT_FOUND`: on a live portal that usually means **a scope was not
+granted**, not that the module is missing. Re-issue the webhook with the right
+boxes ticked.
+
+Refresh the catalogue with `python scripts/build_catalog.py`.
+
+## Portal events
+
+The server can learn about changes in the portal and keep their history. Three
+ways to receive them — pull channel, outgoing-webhook receiver, poller — chosen
+by where the server runs and what the network allows.
+
+```
+b24_events_poll()                             new events
+b24_events_ack(ids=[...])                     mark as processed
+b24_events_history(entity="task",
+                   entity_id="477818",
+                   since="7d")                the archive for one object
+b24_changes_since(feed="tasks")               the poller
+b24_events_stats()                            what is configured and captured
+```
+
+`b24_events_history` answers what REST cannot: most Bitrix entities expose no
+change history, and a Scrum board offers no way to read a task's current column.
+Here it exists, assembled from captured events.
+
+Telegram forwarding is configured through `b24_telegram_status`,
+`b24_telegram_configure` and `b24_telegram_test`. Nothing is forwarded by
+default — the user picks the filter.
+
+Step-by-step setup for each path, every environment variable and a
+troubleshooting table: [EVENTS.md](EVENTS.md).

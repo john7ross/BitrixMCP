@@ -119,20 +119,52 @@ debugging. Unset it to allow writes.
 
 ## Known limitations
 
-- **Scrum sprint boards: `STAGE_ID` is write-unsafe and read-unreliable.**
-  Confirmed live against a production portal. `tasks.task.update` with
-  `STAGE_ID` is accepted with no error and reads back correctly, but for a
-  task on an active sprint it does not move the card on the real board — use
-  `b24_scrum_task_move` (`tasks.api.scrum.kanban.addTask`) instead. Worse: once
-  a task has been moved the *correct* way, its `tasks.task.STAGE_ID` goes
-  stale and stops tracking the board — verified by moving a task twice via
-  `kanban.addTask` and watching `STAGE_ID` never change, with no replication
-  delay. There is no documented `tasks.api.scrum.kanban.*` method to list
-  which tasks are actually in a stage (only `addTask`/`deleteTask`/
-  `getStages`/`getFields` exist), so `b24_tasks_list` filtered by `STAGE_ID`
-  on a sprint board is approximate at best — trust it only for tasks whose
-  stage was last set via `.add`/`.update` and never moved on the real board
-  since.
+- **Scrum sprint boards: moving a card takes two calls, and `STAGE_ID` cannot
+  confirm it.** Established by watching a production board, because every call
+  involved reports success regardless of what happened:
+
+  | Call | What it really does |
+  |---|---|
+  | `tasks.task.update` + `STAGE_ID` | Changes the field and writes a history entry everyone can see — **the card does not move**. The worst case: colleagues read "stage changed" in the log while the board still shows the old column. |
+  | `kanban.addTask` | **Places** a card that is *not* on the board. For one already in a column it returns `true` and does nothing at all. |
+  | `kanban.deleteTask` | Takes the card off the board (the task stays in the sprint). |
+  | `task.stages.movetask` | Returns `false` — it governs the plain group kanban, not sprints. |
+
+  So a move is `deleteTask` then `addTask`, which is what `b24_scrum_task_move`
+  does. Despite the name, `deleteTask` removes only the *column placement* — it
+  does not delete the task and does not leave a duplicate card. Compared before
+  and after a real move: same id, same GUID, same creation date, story points,
+  checklist, logged time and tags all intact, one extra history row; the board
+  showed exactly one card. Repeated moves are safe.
+  Do **not** verify with `b24_task_get`: `STAGE_ID` read `0` while the
+  card was visibly sitting in the target column. There is no documented
+  `tasks.api.scrum.kanban.*` method that lists which tasks are in a stage, so
+  `b24_tasks_list` filtered by `STAGE_ID` on a sprint board is approximate at
+  best. The pull channel is the reliable read: its `tasks / task_update` event
+  carries `BEFORE.STAGE`, `AFTER.STAGE` and `AFTER.STAGE_INFO` with the column
+  id — see [EVENTS.md](EVENTS.md).
+- **Backlog ↔ sprint is a different, working mechanism.**
+  `tasks.api.scrum.task.update` with `entityId` moves a task between the
+  group's backlog and a sprint, and it genuinely works — `entityId` on
+  `tasks.api.scrum.task.get` reflects it immediately. That entity carries the
+  sprint id, story points and sort order, but **no column**: the card's column
+  is simply not part of the REST model.
+- **Task comments live in one of two places, and Bitrix will not say which.**
+  Older portals keep them in a forum topic (`task.commentitem.*`); portals where
+  a task has a chat keep them there instead, leaving `forumTopicId` null. Reading
+  only the forum on such a portal returns `[]` for a task that visibly has
+  comments — a successful `b24_task_comment_add` then looks like a failure, and
+  the natural reaction is to post it again. `b24_task_comments_list` reads the
+  forum first, falls back to the chat, and reports `source` so an empty answer
+  means "nothing there", not "looked in the wrong place". Chat-sourced entries
+  include Bitrix's own notices (task created, time logged) flagged `is_system`.
+- **Calendar events come back whole, so ask for less.** `calendar.event.get` has
+  no server-side projection and no paging: it returns every field of every event
+  in the range. One month for one user measured 232 events × 60 fields ≈ 1 MB.
+  `b24_calendar_event_list` therefore trims client-side — a compact field set and
+  `limit=50` by default — while always reporting the true `total` and a
+  `truncated` flag. Widen deliberately (`select=['*']`, a higher `limit`) rather
+  than assuming the tail is empty.
 - **Disk downloads need the server's IP allowed by the portal.**
   `b24_disk_file_content` resolves `DOWNLOAD_URL` and fetches it server-side, but
   some portals' WAF returns `403 Forbidden` (HTML) to that fetch when it comes

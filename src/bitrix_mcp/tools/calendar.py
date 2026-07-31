@@ -44,20 +44,56 @@ async def _resolve_owner(client, owner_id: Optional[int], owner_type: str) -> in
     raise ValueError("owner_id is required when owner_type != 'user'.")
 
 
+
+# Each event carries ~60 fields, many of them long (DESCRIPTION, ATTENDEE_LIST,
+# EXDATE, the DAV/Exchange sync columns). One busy month for one user measured
+# 232 events x ~2.6 KB = ~1 MB in a single response - enough to blow an agent's
+# context in one call. Bitrix offers no server-side projection for
+# calendar.event.get, so the trimming is ours, applied after the fetch.
+EVENT_DEFAULT_FIELDS = [
+    "ID", "NAME", "DATE_FROM", "DATE_TO", "SECTION_ID", "CAL_TYPE", "OWNER_ID",
+    "CREATED_BY", "IS_MEETING", "MEETING_STATUS", "LOCATION", "ACCESSIBILITY", "IMPORTANCE",
+]
+
+
+def _project(event: dict, fields: list[str] | None) -> dict:
+    if not isinstance(event, dict):
+        return event
+    if fields and "*" in fields:
+        return event
+    keep = fields or EVENT_DEFAULT_FIELDS
+    return {k: event.get(k) for k in keep if k in event}
+
+
 @mcp.tool(name="b24_calendar_event_list", annotations=READ)
 async def b24_calendar_event_list(
     date_from: Annotated[str, Field(description="Range start, 'YYYY-MM-DD' (or 'YYYY-MM-DD HH:MM:SS').")],
     date_to: Annotated[str, Field(description="Range end, 'YYYY-MM-DD'.")],
     owner_id: OwnerId = None,
     owner_type: OwnerType = "user",
+    select: Annotated[Optional[list], Field(default=None, description="Fields to keep per event. Omit for a compact default set; pass ['*'] for every field (large); or name fields explicitly, e.g. ['ID','NAME','DATE_FROM','DESCRIPTION'].")] = None,
+    limit: Annotated[int, Field(default=50, ge=1, le=500, description="Max events to return. The full match count is always reported as 'total'.")] = 50,
     webhook_url: WebhookUrl = None,
     personal_webhook: PersonalWebhook = None,
     ctx: Context | None = None,
 ) -> str:
     """List calendar events in a date range (calendar.event.get).
 
-    owner_id defaults to the acting user. Returns {"count": n, "events": [...]}
-    with fields like NAME, DATE_FROM, DATE_TO, ATTENDEE_LIST, etc.
+    owner_id defaults to the acting user.
+
+    Bitrix returns every field of every event in the range and offers no
+    server-side projection or paging here, so this trims client-side: by
+    default each event keeps a compact set of fields and at most ``limit``
+    events come back. ``total`` always reports how many matched, and
+    ``truncated`` says whether you are seeing all of them — narrow the date
+    range or raise ``limit`` rather than assuming the tail is empty. Ask for
+    ``select=['*']`` only when you genuinely need the full ~60 fields; a busy
+    month measured ~1 MB that way.
+
+    Returns:
+        JSON: {"events": [...], "count": <returned>, "total": <matched>,
+        "truncated": <bool>, "ownerId": <int>, "type": "user"|"group",
+        "fields": "default"|"all"|<list>}.
     """
     try:
         client = get_client(ctx, webhook_url, personal_webhook)
@@ -66,7 +102,17 @@ async def b24_calendar_event_list(
             "type": owner_type, "ownerId": owner, "from": date_from, "to": date_to,
         })
         events = events or []
-        return ok({"count": len(events), "ownerId": owner, "type": owner_type, "events": events})
+        total = len(events)
+        page = [_project(e, select) for e in events[:limit]]
+        return ok({
+            "count": len(page),
+            "total": total,
+            "truncated": total > len(page),
+            "ownerId": owner,
+            "type": owner_type,
+            "fields": "all" if (select and "*" in select) else (select or "default"),
+            "events": page,
+        })
     except Exception as exc:  # noqa: BLE001
         return err(exc)
 

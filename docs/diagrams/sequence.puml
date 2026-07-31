@@ -9,6 +9,7 @@ participant "FastMCP transport" as T
 participant "Tool (crm.py)" as TL
 participant "runtime.run_list" as R
 participant "BitrixClient" as B
+participant "sanitize" as S
 database "Bitrix24 REST" as P
 
 C -> T : tools/call b24_crm_list {entity, filter, ...}
@@ -21,10 +22,14 @@ B -> P : POST /rest/<id>/<tok>/crm.deal.list.json  (JSON body)
 alt success
   P --> B : {result:[...], total, next}
   B --> R : {items, count, total, next, has_more, truncated}
+  R -> S : scrub (webhooks/tokens Bitrix echoes back)
+  S --> R : redacted payload
   R --> TL : JSON string
 else Bitrix error (e.g. ACCESS_DENIED)
   P --> B : {error, error_description}
   B --> R : raise BitrixError(code)
+  R -> S : scrub
+  S --> R : redacted payload
   R --> TL : JSON {error:true, code, message}
 end
 TL --> T : text result

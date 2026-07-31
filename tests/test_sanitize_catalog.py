@@ -145,6 +145,56 @@ def test_search_finds_by_intent_not_only_by_name():
     assert any("telephony" in name or "voximplant" in name for name in names)
 
 
+# Ranking regression net. Each case is a query an agent would plausibly write,
+# with the method it must actually reach. Substring scoring used to fail 11 of
+# these - "search users by name" returned access.name and never user.search,
+# because every word weighed the same and "on" matched inside "sonet_group".
+@pytest.mark.parametrize("query,expected,within", [
+    ("move task on scrum sprint board", "tasks.api.scrum.kanban.addTask", 5),
+    ("move task stage", "task.stages.movetask", 5),
+    ("sprint board columns", "tasks.api.scrum.kanban.getStages", 5),
+    ("create a deal", "crm.deal.add", 5),
+    ("delete a lead", "crm.lead.delete", 5),
+    ("upload file to disk folder", "disk.folder.uploadfile", 5),
+    ("call recording", "voximplant.statistic.get", 10),
+    ("send chat message", "im.message.add", 5),
+    ("list company departments", "department.get", 5),
+    ("add comment to task", "task.commentitem.add", 5),
+    ("log time spent on task", "task.elapseditem.add", 5),
+    ("create workgroup", "sonet_group.create", 5),
+    ("calendar events", "calendar.event.get", 5),
+    ("search users by name", "user.search", 5),
+    ("scrum backlog items", "tasks.api.scrum.backlog.get", 10),
+])
+def test_intent_queries_reach_the_right_method(query, expected, within):
+    try:
+        names = [hit["method"] for hit in method_search(query, limit=30)]
+    except CatalogUnavailable:
+        pytest.skip("catalog not built")
+    assert expected in names, f"{expected!r} absent from results for {query!r}: {names[:5]}"
+    rank = names.index(expected) + 1
+    assert rank <= within, f"{expected!r} ranked {rank} for {query!r}; top5={names[:5]}"
+
+
+def test_prefix_query_keeps_the_family_together():
+    """Typing a method prefix must not scatter unrelated methods through the top."""
+    try:
+        names = [hit["method"] for hit in method_search("crm.deal", limit=5)]
+    except CatalogUnavailable:
+        pytest.skip("catalog not built")
+    assert all(n.startswith("crm.deal.") for n in names), names
+
+
+def test_event_handlers_do_not_outrank_real_methods():
+    """'calendar events' must answer with calendar.event.get, not the ON* handlers
+    that merely notify about calendar entries."""
+    try:
+        names = [hit["method"] for hit in method_search("calendar events", limit=5)]
+    except CatalogUnavailable:
+        pytest.skip("catalog not built")
+    assert not names[0].lower().startswith("on"), names
+
+
 def test_scope_gaps_separates_reachable_from_blocked():
     try:
         gaps = scope_gaps(["crm", "task"])

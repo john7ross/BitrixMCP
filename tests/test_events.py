@@ -258,6 +258,29 @@ def test_filter_selects_what_the_user_asked_for(spec, expected_ids):
     assert [e["id"] for e in ALL if should_forward(e, spec)] == expected_ids
 
 
+@pytest.mark.parametrize("preset", ["work", "tasks"])
+def test_task_presets_drop_the_portal_counter_noise(preset):
+    """Confirmed end to end: creating, renaming and commenting on ONE task made
+    the portal emit four `tasks/user_counter` / `tasks/user_efficiency_counter`
+    events alongside the four useful ones. `tasks/*` catches them, and a chat
+    that is half bookkeeping gets muted."""
+    from bitrix_mcp.tools.telegram import PRESETS
+
+    spec = PRESETS[preset]
+    for noisy in ("tasks/user_counter", "tasks/user_efficiency_counter"):
+        assert not should_forward({"event": noisy}, spec), noisy
+    for wanted in ("tasks/task_add", "tasks/task_update", "tasks/comment_add"):
+        assert should_forward({"event": wanted}, spec), wanted
+
+
+def test_everything_preset_really_means_everything():
+    """The escape hatch must stay unfiltered, or it cannot answer 'what does
+    this portal actually send?'."""
+    from bitrix_mcp.tools.telegram import PRESETS
+
+    assert should_forward({"event": "tasks/user_counter"}, PRESETS["everything"])
+
+
 def test_stage_transition_is_spelled_out():
     """'task changed' is useless; the before/after pair is the whole point."""
     text = format_event(TASK_MOVE, "https://portal.example.ru")

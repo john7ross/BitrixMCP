@@ -329,9 +329,14 @@ class BitrixClient:
 def _extract_list(result: Any) -> list[Any]:
     """Normalize a method's ``result`` into a list of records.
 
-    Handles the three shapes Bitrix uses: a bare list (``crm.*.list``), a dict
-    with a ``tasks``/``items`` array (``tasks.task.list``), or a dict keyed by id
-    (some legacy list methods)."""
+    Handles the four shapes Bitrix uses: a bare list (``crm.*.list``), a dict
+    with a ``tasks``/``items`` array (``tasks.task.list``), a dict keyed by id
+    (some legacy list methods), and a named wrapper key whose value is itself
+    keyed by id - ``crm.documentgenerator.template.list`` answers
+    ``{"templates": {"1": {...}, "2": {...}}}``. That last shape used to fall
+    through to ``list(result.values())`` and yield ONE record containing every
+    template, while ``total`` correctly said 19: the caller saw a single
+    malformed blob and no way to tell something was wrong."""
     if result is None:
         return []
     if isinstance(result, list):
@@ -340,6 +345,12 @@ def _extract_list(result: Any) -> list[Any]:
         for key in ("tasks", "items", "events"):
             if isinstance(result.get(key), list):
                 return result[key]
+        # A lone non-numeric key is a wrapper around the real collection; a lone
+        # numeric key is a record id and must NOT be unwrapped.
+        if len(result) == 1:
+            (only_key, only_value), = result.items()
+            if not str(only_key).isdigit() and isinstance(only_value, (list, dict)):
+                return _extract_list(only_value)
         # dict keyed by id -> values
         return list(result.values())
     return [result]

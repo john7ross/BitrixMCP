@@ -44,6 +44,7 @@ from ..runtime import (
     WebhookUrl,
     err,
     get_client,
+    guard_write,
     ok,
     run_list,
 )
@@ -133,18 +134,64 @@ async def b24_scrum_task_move(
     personal_webhook: PersonalWebhook = None,
     ctx: Context | None = None,
 ) -> str:
-    """Move a task to a column on a Scrum sprint board (tasks.api.scrum.kanban.addTask).
+    """Move a task to a column on a Scrum sprint board.
 
-    Use this instead of b24_task_update's STAGE_ID to relocate a task that
-    belongs to an active sprint. Confirmed live: tasks.task.update with
-    STAGE_ID is accepted with no error and the new value reads back correctly,
-    but the card does not actually move on the real board (reload and it's
-    still in the old column) — this method is Bitrix's board-aware write and
-    is the one that does move it.
+    Bitrix has no single "move" call, and the obvious candidates each fail in a
+    way that looks like success — all of the following was established by
+    watching a real board, not by reading API responses:
+
+    * ``tasks.api.scrum.kanban.addTask`` only *places* a card that is not
+      currently on the board. For a card already sitting in a column it returns
+      ``true`` and does nothing at all — no field change, no history entry, no
+      movement.
+    * ``tasks.task.update`` with ``STAGE_ID`` does change the field and does
+      write a history entry that everyone can see, but the card does not move.
+      That is the worst outcome: colleagues see "stage changed" in the log while
+      the board still shows the old column.
+    * ``task.stages.movetask`` answers ``false`` — it governs the plain group
+      kanban, not sprint boards.
+
+    What works is taking the card off the board and putting it back in the
+    target column: ``kanban.deleteTask`` then ``kanban.addTask``. This tool does
+    that, in that order.
+
+    ``deleteTask`` does **not** delete the task and does not produce a second
+    card. It removes only the column placement; the task, its sprint membership
+    and everything on it survive, so ``addTask`` puts the same card back.
+    Measured before and after a move: identical id, GUID, creation date, story
+    points, checklist, logged time and tags — the only difference was one added
+    history row. Moving the same card repeatedly is safe.
+
+    Do not verify the result with ``b24_task_get``: ``STAGE_ID`` is unreliable
+    for sprint boards — it read ``0`` while the card was visibly sitting in the
+    target column. The board is the source of truth; the pull channel's
+    ``tasks / task_update`` event carries ``AFTER.STAGE_INFO`` and is the only
+    reliable read.
+
+    Returns:
+        JSON: {"moved": true, "task_id", "sprint_id", "stage_id",
+        "steps": {"removed_from_board": ..., "added_to_stage": ...},
+        "note": "..."}.
     """
-    from ..runtime import run_call
-    return await run_call(
-        ctx, "tasks.api.scrum.kanban.addTask",
-        {"sprintId": sprint_id, "taskId": task_id, "stageId": stage_id},
-        webhook_url=webhook_url, personal_webhook=personal_webhook, is_write=True, unwrap=True,
-    )
+    try:
+        client = get_client(ctx, webhook_url, personal_webhook)
+        guard_write("tasks.api.scrum.kanban.deleteTask", is_write=True)
+        removed = await client.call_result(
+            "tasks.api.scrum.kanban.deleteTask", {"sprintId": sprint_id, "taskId": task_id}
+        )
+        added = await client.call_result(
+            "tasks.api.scrum.kanban.addTask",
+            {"sprintId": sprint_id, "taskId": task_id, "stageId": stage_id},
+        )
+        return ok({
+            "moved": bool(added),
+            "task_id": task_id,
+            "sprint_id": sprint_id,
+            "stage_id": stage_id,
+            "steps": {"removed_from_board": removed, "added_to_stage": added},
+            "note": ("Verify on the board, not via b24_task_get - STAGE_ID is "
+                     "unreliable for sprint boards and may still read 0 or the "
+                     "previous column."),
+        })
+    except Exception as exc:  # noqa: BLE001
+        return err(exc)

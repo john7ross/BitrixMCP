@@ -7,22 +7,47 @@ title Bitrix24 MCP server - Component diagram (C4)
 
 Person(agent, "MCP client / agent", "Claude Code, Desktop, Cursor, or custom agent code")
 System_Ext(portal, "Bitrix24 portal", "REST API over an incoming webhook (PHP)")
+System_Ext(tg, "Telegram Bot API", "Optional: receives forwarded portal events")
 
 System_Boundary(mcp, "bitrix_mcp (Python package)") {
-  Component(entry, "Entry point", "__main__ / bitrix-mcp", "Parses transport flags; runs stdio or Streamable HTTP")
-  Component(server, "Server + tool registry", "FastMCP", "Holds instructions; imports 16 tool modules; exposes 87 tools")
-  Component(tools, "Tool modules", "tools/*.py", "Typed tools per domain: crm, tasks, scrum, calendar, disk, users, groups, messaging, lists, catalog, sale, documents, bizproc, telephony, universal")
+  ' ~ escapes the underscores: PlantUML reads __x__ as underline markup and
+  ' would render the module name as an italic "main".
+  Component(entry, "Entry point", "~__main~__.py / bitrix-mcp", "Parses transport flags; runs stdio or Streamable HTTP; starts the pull channel when enabled")
+  Component(server, "Server + tool registry", "FastMCP", "Holds instructions; imports 18 tool modules; exposes 99 tools; stamps the package version")
+  Component(tools, "Tool modules", "tools/*.py", "Typed tools per domain: universal, discovery, crm, tasks, scrum, calendar, disk, users, groups, messaging, lists, catalog, sale, documents, bizproc, telephony, events, telegram")
   Component(runtime, "Runtime layer", "runtime.py", "Webhook resolution, read-only guard, JSON formatting, shared param types")
   Component(client, "Bitrix client", "client.py + httpx", "JSON POST calls, pagination, php_query for batch, error surfacing, write classifier")
-  Component(config, "Config", "config.py", "Reads env: webhook, read-only, timeout, page cap")
+  Component(config, "Config", "config.py", "Reads every BITRIX_* setting from the environment")
+  Component(sanitize, "Secret sanitizer", "sanitize.py", "Single choke point: strips webhooks and tokens from every output and from httpx logs")
+  Component(knowledge, "Knowledge layer", "catalog.py + data/catalog.json", "1930 documented methods: intent search, signatures, scope gap diagnosis")
+
+  Boundary(events, "Event subsystem (off unless configured)") {
+    Component(pull, "Pull channel", "events/pullchannel.py", "Outbound subscription to Push and Pull; works behind NAT and VPN")
+    Component(recv, "Webhook receiver", "events/receiver.py + phpform.py", "POST /b24/events; HTTP transport only; fail-closed without a token")
+    Component(feeds, "Poller", "events/feeds.py", "b24_changes_since: outbound-only, per-feed cursors")
+    Component(store, "Event store", "events/store.py + SQLite", "Queue, history archive, cursors, ack state")
+    Component(tgfwd, "Telegram forwarder", "events/telegram.py", "Filter DSL and delivery")
+  }
 }
 
 Rel(agent, entry, "MCP protocol", "stdio / Streamable HTTP")
-Rel(entry, server, "boots + runs")
+Rel(entry, server, "boots and runs")
 Rel(server, tools, "registers (decorator import)")
 Rel(tools, runtime, "run_call / run_list")
+Rel(tools, knowledge, "search / schema / scope gaps")
 Rel(runtime, config, "reads settings")
-Rel(runtime, client, "constructs + calls")
+Rel(runtime, sanitize, "scrubs every response")
+Rel(runtime, client, "constructs and calls")
 Rel(client, portal, "HTTPS POST /rest/<id>/<token>/method.json", "JSON")
+
+Rel(portal, pull, "event stream", "long poll")
+Rel(portal, recv, "outgoing webhook", "HTTP POST")
+Rel(feeds, client, "polls changed rows")
+Rel(pull, store, "writes")
+Rel(recv, store, "writes")
+Rel(feeds, store, "writes")
+Rel(tools, store, "poll / ack / history / stats")
+Rel(store, tgfwd, "unforwarded events")
+Rel(tgfwd, tg, "sendMessage", "HTTPS")
 
 @enduml

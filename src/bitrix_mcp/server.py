@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 import importlib
+from importlib.metadata import PackageNotFoundError, version as _dist_version
 
 from mcp.server.fastmcp import FastMCP
+
+try:
+    # Single source of truth: pyproject.toml, read through the installed
+    # metadata. Hardcoding it here as well would guarantee the two drift.
+    __version__ = _dist_version("bitrix-mcp")
+except PackageNotFoundError:  # a source tree that was never installed
+    __version__ = "0.0.0+source"
 
 INSTRUCTIONS = """\
 Universal Bitrix24 REST gateway. Two layers of tools:
@@ -26,6 +34,12 @@ Errors are returned verbatim (never hidden as empty results): watch for
 """
 
 mcp = FastMCP("bitrix24_mcp", instructions=INSTRUCTIONS)
+
+# FastMCP does not forward a version to the low-level server, so every client
+# saw the MCP SDK's version in `serverInfo` (1.28.1) and had no way to learn
+# which build of THIS server it was talking to. Confirmed over Streamable HTTP
+# before the fix.
+mcp._mcp_server.version = __version__
 
 
 _TOOL_MODULES = (

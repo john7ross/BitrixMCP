@@ -283,8 +283,14 @@ produces a lot of housekeeping noise, and a forwarder that floods the chat on
 first run gets muted the same day.
 
 ```ini
-BITRIX_TELEGRAM_EVENTS=tasks/*,ONTASK*,ONCRM*,poll/*,-im/*
+BITRIX_TELEGRAM_EVENTS=tasks/*,ONTASK*,ONCRM*,poll/*,-im/*,-*counter*
 ```
+
+The `-*counter*` exclusion is not cosmetic. The portal fires
+`tasks/user_counter` and `tasks/user_efficiency_counter` on nearly every action
+and they carry nothing a human needs — measured end to end, one task created,
+renamed and commented produced **four counter messages against four useful
+ones**. `tasks/*` catches them, so drop them by name.
 
 Comma-separated, case-insensitive:
 

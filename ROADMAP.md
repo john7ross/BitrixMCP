@@ -9,7 +9,7 @@ plus the universal `b24_call` / `b24_batch` backbone and a method catalogue from
 the official documentation (100% API coverage — both calling and knowing the
 signatures), reads and writes, both transports, and three ways of receiving
 portal events with a history archive and Telegram forwarding. Offline
-verification is green (106 tests); live verification against a real portal was
+verification is green (132 tests); live verification against a real portal was
 carried out end to end (see "History") — reads across every domain
 plus full write life-cycles (task, workgroup, calendar event, disk file — each
 created, verified, and deleted, nothing pre-existing touched).
@@ -57,7 +57,82 @@ created, verified, and deleted, nothing pre-existing touched).
   `AFTER.STAGE_INFO` with the column id. Verified live on a real board — a card
   was moved and the event captured. The true task-to-column mapping accumulates
   from those transitions; REST still does not expose it, and that remains a
-  limitation of REST rather than of this project.
+  limitation of REST rather than of this project. **Superseded in part by the
+  closeout audit below:** `kanban.addTask` alone does *not* relocate a card that
+  is already on the board — the working move is `deleteTask` then `addTask`.
+- **Release closeout audit (v0.1.0).** The whole surface was re-verified against
+  the production portal, one domain at a time, and the sweep found twelve defects
+  that the previous "feature-complete" claim had shipped past. All are fixed:
+  - `b24_task_comments_list` returned `[]` for a task that demonstrably had
+    comments. This portal keeps them in the task **chat**, not the legacy forum
+    topic (`forumTopicId` is null), and the tool read only the forum — a write
+    that succeeded looked like a write that failed. It now reads the forum,
+    falls back to the chat, and reports which source answered.
+  - `b24_calendar_event_list` returned every field of every event with no way to
+    narrow it: one month for one user measured **232 events × 60 fields ≈ 1 MB**,
+    enough to exhaust an agent's context in a single call. Added `select` and
+    `limit` with a compact default (~16 KB for the same range), an honest `total`
+    and a `truncated` flag; `select=['*']` still returns everything on request.
+  - `b24_method_search` scored substrings with every word weighted equally, so
+    "on" matched inside `sonet_group` and common words drowned rare ones. Of 15
+    realistic intent queries only 4 reached the right method — "search users by
+    name" never returned `user.search` at all. Replaced with segment matching,
+    IDF weighting, a synonym map for Bitrix's naming (a board move is
+    `kanban.addTask`, a workgroup is a `sonet_group`), and a demotion for event
+    handlers. Now 15/15, locked in by tests.
+  - `_extract_list` did not recognise a named wrapper key holding a dict keyed by
+    id, so `crm.documentgenerator.template.list` delivered **19 templates as one
+    malformed record** while `total` said 19 — a self-contradicting result that
+    raised no error.
+  - The server reported the **MCP SDK's version** (1.28.1) as its own in
+    `serverInfo`, because FastMCP does not forward one. It now reports the
+    package version, read from installed metadata rather than hardcoded twice.
+  - `scripts/events_tools_check.py` printed `FAIL` and exited **0**, so a broken
+    run looked green. It now asserts and returns a real exit code — proven in
+    both directions by forcing a failure.
+  - `pydantic`, `starlette` and `uvicorn` were imported directly but declared
+    nowhere, inherited by luck from `mcp[cli]`. Now declared.
+  - Ten of the fifteen scripts, including every verification script, were
+    documented nowhere. README (both languages) now tables them.
+  - Documentation drift: the test count said 106, and the Russian docs claimed
+    1901 catalogue methods where the English said 1930. Both corrected to the
+    measured values.
+  - **`b24_scrum_task_move` did not move anything, and the docs said it did.**
+    Reported by the operator: a card moved for him but not for colleagues,
+    while the change log showed the move to everyone. Re-tested on the live
+    board: `kanban.addTask` only *places* a card that is off the board — called
+    on one already in a column it returns `true` and does nothing, which is why
+    nobody's board changed. `tasks.task.update` with `STAGE_ID` is worse: it
+    writes the field and a visible history entry while the card stays put,
+    which is exactly the half-moved state that was observed. The move that
+    works is `kanban.deleteTask` then `kanban.addTask`, confirmed by watching
+    the board. Note that `STAGE_ID` cannot verify any of this — it read `0`
+    while the card was visibly in the target column. Also learned along the
+    way: `tasks.api.scrum.task.update` with `entityId` genuinely moves a task
+    between backlog and sprint, and that entity has no column field at all.
+  - **Telegram forwarding was verified end to end for the first time** —
+    portal → pull channel → store → filter → chat, with no public URL involved
+    (the pull channel is outbound-only). It worked, and it exposed a usability
+    defect the offline filter tests could not: the portal fires
+    `tasks/user_counter` and `tasks/user_efficiency_counter` on nearly every
+    action, `tasks/*` catches them, and one task created + renamed + commented
+    produced four counter messages against four useful ones. The `work` and
+    `tasks` presets now exclude `*counter*`; `everything` deliberately does not.
+  - **The built wheel could not be installed.** `mcp[cli]>=1.2.0` carried no
+    upper bound, so a clean install resolved **mcp 2.0.0**, which replaced
+    `mcp.server.fastmcp` with `mcp.server.mcpserver` — the package failed at
+    `import`, before any tool ran. Development never saw it because `uv.lock`
+    pins 1.28.1; only installing the wheel into a throwaway venv exposed it.
+    Bounded to `<2` and re-verified by installing the rebuilt wheel into a clean
+    environment and running it against the live portal from outside the repo.
+
+  Not defects, confirmed and recorded so the next audit does not re-flag them:
+  CRM answers `ACCESS_DENIED` for this webhook's user (a portal permission, and
+  the empty-error-code fix correctly preserves the message); `tasks.task.get` on
+  a deleted task returns `[]` rather than an error, which is Bitrix's own
+  behaviour passed through faithfully; telephony answers
+  `ERROR_METHOD_NOT_FOUND` because the scope is genuinely not granted, exactly
+  as `b24_scope_gaps` predicts.
 
 ## Out of scope (by design)
 
@@ -80,6 +155,10 @@ created, verified, and deleted, nothing pre-existing touched).
 
 ## Possible future work (not committed)
 
+- **Port to the MCP SDK 2.x API.** The dependency is bounded to `mcp<2` because
+  2.0 replaced `mcp.server.fastmcp` with `mcp.server.mcpserver`. Staying on 1.x
+  is fine for now, but the bound is a deadline, not a resting place: the port
+  should happen before 1.x stops receiving fixes.
 - Typed wrappers for open lines and mail if daily demand appears.
 - A cursor helper for very large exports beyond the page cap.
 - Optional API-key auth in front of the HTTP transport.

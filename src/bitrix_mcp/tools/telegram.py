@@ -33,10 +33,20 @@ try:
 except Exception:  # pragma: no cover
     Context = Any  # type: ignore
 
+# The portal's pull channel emits bookkeeping alongside real activity:
+# `tasks/user_counter` and `tasks/user_efficiency_counter` fire on almost every
+# action and carry nothing a human needs. Confirmed end to end - one task
+# created, renamed and commented produced four counter messages against four
+# useful ones, which is how a forwarder gets muted on day one. `tasks/*` alone
+# catches them, so every task-bearing preset excludes them by name.
+NOISE = "-*counter*"
+
 PRESETS = {
-    "work": "tasks/*,ONTASK*,ONCRM*,poll/*,-im/*",
-    "tasks": "tasks/*,ONTASK*,poll/task",
+    "work": f"tasks/*,ONTASK*,ONCRM*,poll/*,-im/*,{NOISE}",
+    "tasks": f"tasks/*,ONTASK*,poll/task,{NOISE}",
     "crm": "ONCRM*,poll/deal,poll/lead,poll/contact,poll/company",
+    # Deliberately unfiltered: "everything" must mean everything, counters
+    # included, or it cannot be used to find out what the portal actually sends.
     "everything": "*",
     "nothing": "",
 }

@@ -33,7 +33,7 @@ fixed *by design*, not patched around:
 | `department.get` has **no server-side filter at all** (a Bitrix API limitation, undocumented) — any `filter` was silently ignored and the whole department tree (95+ rows) came back regardless | `b24_department_get` filters **client-side** after a full fetch, so `filter`/`ID` genuinely narrow the result instead of quietly dumping everything. |
 | Bitrix sometimes reports a failure as `{"error": "", "error_description": "Access denied."}` — an **empty-string** error code — which a naive truthiness check (`if data.get("error")`) misses, losing the code and message to a generic HTTP-status fallback | Checked by **key presence**, not truthiness — `code`/`message` always reflect what Bitrix actually said. |
 | `calendar.event.add` / `.update` silently **drop `attendees`** unless `is_meeting` is also set — 200 OK, event created, nobody invited, no error anywhere | `is_meeting` is **auto-set to `'Y'`** whenever `attendees` is non-empty and not already specified. |
-| Moving a task on a **Scrum sprint board** via `tasks.task.update`'s `STAGE_ID` is accepted with no error and reads back correctly, but the card **does not actually move** on the real board (confirmed live: reload the page, still in the old column) | New `b24_scrum_task_move` calls the board-aware `tasks.api.scrum.kanban.addTask` instead — the one that actually relocates the card. `b24_task_update`/`b24_tasks_list` now document this trap rather than silently mis-teaching it. |
+| Moving a task on a **Scrum sprint board** has no single API call, and every obvious candidate fails while reporting success: `tasks.task.update`'s `STAGE_ID` changes the field and writes a history entry everyone can see, but the card stays put; `kanban.addTask` only *places* a card that is off the board and answers `true` without doing anything for one already in a column; `task.stages.movetask` answers `false`. | `b24_scrum_task_move` takes the card off the board and puts it back at the target column (`kanban.deleteTask` → `kanban.addTask`) — verified by watching a real board, not by trusting the response. It also warns that `STAGE_ID` cannot verify the result: it read `0` while the card was visibly in the target column. |
 
 ## Install
 
@@ -152,6 +152,29 @@ uv sync                 # install runtime + dev deps
 uv run pytest -q        # offline unit tests (no portal needed)
 uv run python scripts/smoke.py "<webhook>"   # live read-only access map (run from a network with portal access)
 ```
+
+### Verification scripts
+
+Each one exits non-zero when a check fails, so they can be chained in CI. Those
+marked *offline* need no portal; the rest need a reachable webhook.
+
+| Script | What it proves | Needs |
+|---|---|---|
+| `scripts/startup_check.py` | The server boots on both transports and registers every tool | offline |
+| `scripts/leak_check.py` | The sanitizer strips webhooks/tokens from output *and* from httpx logs | offline |
+| `scripts/git_secret_scan.py` | No secret is present in tracked files or anywhere in git history | offline |
+| `scripts/events_tools_check.py` | poll → ack → history → stats against a seeded store | offline |
+| `scripts/coverage_check.py` | Requirement R-1: catalogue + scope diagnosis reach the whole API | portal |
+| `scripts/poller_check.py` | `b24_changes_since` cursors advance and do not skip rows | portal |
+| `scripts/pull_channel_check.py` | Push & Pull channel subscribes and receives | portal |
+| `scripts/receiver_e2e_check.py` | Outgoing-webhook receiver end to end, including TLS | portal |
+| `scripts/telegram_check.py` | Filter DSL routes the right events | offline |
+| `scripts/telegram_live_check.py` | The bot and chat really accept a message | Telegram |
+| `scripts/smoke.py` | Live read-only access map across every domain | portal |
+| `scripts/build_catalog.py` | Regenerates `data/catalog.json` from the official docs | docs checkout |
+
+Probes (diagnostics, no pass/fail verdict): `pull_probe.py`, `probe_listener.py`,
+`tg_conn_probe.py`.
 
 Diagrams are regenerated with `java -jar plantuml.jar -tpng docs/diagrams/*.puml`.
 

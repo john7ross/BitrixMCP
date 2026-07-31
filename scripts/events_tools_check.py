@@ -49,7 +49,13 @@ def show(label, raw):
     print(json.dumps(json.loads(raw), ensure_ascii=False, indent=1)[:900])
 
 
-async def main() -> None:
+def check(label: str, cond: bool) -> bool:
+    print(("PASS " if cond else "FAIL ") + label)
+    return cond
+
+
+async def main() -> int:
+    results: list[bool] = []
     store = T.get_store()
     store.put("tasks/task_update", "1785195801", PULL_TASK_MOVE,
               source="pull", dedup_on=PULL_TASK_MOVE["mid"])
@@ -63,33 +69,41 @@ async def main() -> None:
     for e in polled["events"]:
         print(f"  #{e['id']} {e['event']:<22} source={e['source']:<7} "
               f"{e['entity']}/{e['entity_id']}  {e.get('received_iso')}")
+    results.append(check("poll returns the three seeded events", polled["count"] == 3))
 
     # Both sources agree on the same task, which is the point of `entity`.
     show("history: task 477818", await T.b24_events_history(entity="task", entity_id="477818"))
 
     hist = json.loads(await T.b24_events_history(entity="task", entity_id="477818"))
+    results.append(check("pull and webhook events converge on one entity",
+                         hist["count"] == 2))
     move = next((e for e in hist["events"] if e["event"] == "tasks/task_update"), None)
+    results.append(check("stage move present in history", move is not None))
     if move:
         p = move["payload"]["params"]
-        print(f"\nstage move recovered: {p['BEFORE']['STAGE']!r} -> {p['AFTER']['STAGE']!r} "
+        print(f"   stage move recovered: {p['BEFORE']['STAGE']!r} -> {p['AFTER']['STAGE']!r} "
               f"(column id {p['AFTER']['STAGE_INFO']['id']})")
-    else:
-        print("\nFAIL: stage move not found in history")
+        results.append(check("   before/after columns survive the round trip",
+                             p["AFTER"]["STAGE_INFO"]["id"] == 17952))
 
     acked = json.loads(await T.b24_events_ack(ids=[e["id"] for e in polled["events"]]))
     print(f"\nack -> {acked}")
     after = json.loads(await T.b24_events_poll(limit=10))
-    print(f"poll after ack -> {after['count']} pending")
+    results.append(check("ack empties the pending queue", after["count"] == 0))
     still = json.loads(await T.b24_events_history(entity="task", entity_id="477818"))
-    print(f"history after ack -> {still['count']} (acked events must survive)")
+    results.append(check("acked events survive in history", still["count"] == 2))
 
     window = json.loads(await T.b24_events_history(since="7d"))
     print(f"history since 7d -> {window['count']}")
     bad = json.loads(await T.b24_events_history(since="not-a-date"))
-    print(f"bad time bound -> error={bad.get('error')} {str(bad.get('message'))[:60]}")
+    results.append(check("a bad time bound errors instead of silently returning all",
+                         bool(bad.get("error"))))
 
     show("stats", await T.b24_events_stats())
 
+    print("\n" + ("ALL PASS" if all(results) else "FAILURES PRESENT"))
+    return 0 if all(results) else 1
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

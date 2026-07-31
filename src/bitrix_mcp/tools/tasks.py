@@ -22,6 +22,9 @@ from ..runtime import (
     Start,
     FetchAll,
     WebhookUrl,
+    err,
+    get_client,
+    ok,
     run_call,
     run_list,
 )
@@ -147,13 +150,66 @@ async def b24_task_delete(
 @mcp.tool(name="b24_task_comments_list", annotations=READ)
 async def b24_task_comments_list(
     id: Annotated[int, Field(description="Task id.")],
+    limit: Annotated[int, Field(default=50, ge=1, le=200, description="Max comments to return when they live in the task chat.")] = 50,
     webhook_url: WebhookUrl = None,
     personal_webhook: PersonalWebhook = None,
     ctx: Context | None = None,
 ) -> str:
-    """List a task's comments (task.commentitem.getlist). Returns the comment list."""
-    return await run_call(ctx, "task.commentitem.getlist", {"TASKID": id},
-                          webhook_url=webhook_url, personal_webhook=personal_webhook, unwrap=True)
+    """List a task's comments, from wherever this portal actually keeps them.
+
+    Bitrix stores task comments in one of two places and does not tell you
+    which: the legacy forum topic (``task.commentitem.getlist``) or the task's
+    chat. On a chat-based portal ``forumTopicId`` is null and the forum method
+    answers with an empty list even when comments exist — confirmed live: a
+    comment added through b24_task_comment_add returned a real id, was visible
+    in the chat, and the forum method still reported nothing. Reading only the
+    forum therefore produces a false "no comments", which reads exactly like a
+    write that failed.
+
+    So: read the forum first, and when it comes back empty fall back to the
+    task chat. ``source`` says which one answered, so an empty result is
+    trustworthy rather than ambiguous.
+
+    Returns:
+        JSON: {"comments": [...], "count": <int>, "source": "forum"|"chat"|"none",
+        "task_id": <int>}. Chat-sourced entries carry "is_system": true for
+        Bitrix's own notices (task created, time logged), which have no author.
+    """
+    try:
+        client = get_client(ctx, webhook_url, personal_webhook)
+        forum = await client.call_result("task.commentitem.getlist", {"TASKID": id})
+        if forum:
+            return ok({"task_id": id, "source": "forum", "count": len(forum), "comments": forum})
+
+        task = await client.call_result(
+            "tasks.task.get", {"taskId": id, "select": ["ID", "CHAT_ID", "FORUM_TOPIC_ID"]}
+        )
+        # A deleted/inaccessible task answers [] here, not an error (Bitrix's own
+        # behaviour) - say so instead of implying the task exists with 0 comments.
+        if not isinstance(task, dict) or not task.get("task"):
+            return ok({"task_id": id, "source": "none", "count": 0, "comments": [],
+                       "note": f"Task {id} returned no data - it may be deleted or not accessible."})
+
+        chat_id = (task.get("task") or {}).get("chatId")
+        if not chat_id:
+            return ok({"task_id": id, "source": "forum", "count": 0, "comments": [],
+                       "note": "No forum comments and this task has no chat."})
+
+        messages = await client.call_result(
+            "im.dialog.messages.get", {"DIALOG_ID": f"chat{chat_id}", "LIMIT": limit}
+        )
+        raw = (messages or {}).get("messages") or []
+        comments = [{
+            "id": m.get("id"),
+            "author_id": m.get("author_id"),
+            "is_system": not m.get("author_id"),
+            "text": m.get("text"),
+            "date": m.get("date"),
+        } for m in raw]
+        return ok({"task_id": id, "source": "chat", "chat_id": chat_id,
+                   "count": len(comments), "comments": comments})
+    except Exception as exc:  # noqa: BLE001
+        return err(exc)
 
 
 @mcp.tool(name="b24_task_comment_add", annotations=WRITE)

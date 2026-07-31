@@ -87,6 +87,25 @@ def test_extract_list_shapes():
     assert _extract_list("scalar") == ["scalar"]
 
 
+def test_extract_list_unwraps_named_dict_keyed_by_id():
+    """crm.documentgenerator.template.list answers {"templates": {"1": {...}}}.
+
+    Confirmed live: 19 templates arrived as ONE record because the wrapper key
+    was never unwrapped, while `total` said 19 - a silent, self-contradicting
+    result rather than an error.
+    """
+    payload = {"templates": {"1": {"id": "1", "name": "Акт"},
+                             "2": {"id": "2", "name": "Счёт"}}}
+    out = _extract_list(payload)
+    assert len(out) == 2, out
+    assert {r["name"] for r in out} == {"Акт", "Счёт"}
+
+
+def test_extract_list_does_not_unwrap_a_single_id_key():
+    """The guard above must not eat a genuine one-record dict keyed by id."""
+    assert _extract_list({"42": {"ID": 42, "TITLE": "x"}}) == [{"ID": 42, "TITLE": "x"}]
+
+
 # --- webhook resolution + read-only guard ------------------------------------
 
 def test_resolve_webhook_precedence(monkeypatch):
@@ -144,6 +163,55 @@ def test_every_domain_still_has_tools():
                      "b24_tasks_list", "b24_events_poll", "b24_changes_since",
                      "b24_telegram_status"):
         assert expected in names, f"{expected} is not registered"
+
+
+def test_scrum_move_removes_from_the_board_before_placing(monkeypatch):
+    """A sprint card is moved by deleteTask -> addTask, in that order.
+
+    kanban.addTask alone only PLACES a card that is off the board; called on a
+    card already in a column it returns true and does nothing. Confirmed by
+    watching a real board: a card sat in the old column while the API reported
+    success. Order matters, so assert the order, not just the calls.
+    """
+    import json as _json
+
+    from bitrix_mcp.tools import scrum
+
+    calls: list[tuple[str, dict]] = []
+
+    class FakeClient:
+        async def call_result(self, method, params=None):
+            calls.append((method, params or {}))
+            return True
+
+    monkeypatch.setattr(scrum, "get_client", lambda *a, **k: FakeClient())
+    monkeypatch.delenv("BITRIX_READ_ONLY", raising=False)
+
+    out = _json.loads(asyncio.run(
+        scrum.b24_scrum_task_move(task_id=42, sprint_id=794, stage_id=17951)
+    ))
+
+    assert [m for m, _ in calls] == [
+        "tasks.api.scrum.kanban.deleteTask",
+        "tasks.api.scrum.kanban.addTask",
+    ], calls
+    assert calls[0][1] == {"sprintId": 794, "taskId": 42}
+    assert calls[1][1] == {"sprintId": 794, "taskId": 42, "stageId": 17951}
+    assert out["moved"] is True
+    # The caller must be told not to trust STAGE_ID for verification.
+    assert "b24_task_get" in out["note"]
+
+
+def test_server_reports_its_own_version_not_the_sdk_version():
+    """FastMCP does not forward a version, so `serverInfo.version` used to be the
+    MCP SDK's (1.28.1). Read from the installed metadata, never hardcoded here."""
+    from importlib.metadata import version
+
+    from bitrix_mcp.server import mcp
+
+    expected = version("bitrix-mcp")
+    assert mcp._mcp_server.version == expected
+    assert not expected.startswith("1.")  # would mean the SDK version leaked back
 
 
 def test_every_tool_excludes_context_from_schema():

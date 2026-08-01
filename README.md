@@ -185,6 +185,16 @@ Diagrams are regenerated with `java -jar plantuml.jar -tpng docs/diagrams/*.puml
 - The read-only guard classifies writes by method verb; typed write tools are
   always classified correctly. `b24_call`/`b24_batch` use the heuristic.
 
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
+## Security
+
+Found a vulnerability? Please report it privately, not in a public issue —
+see [SECURITY.md](SECURITY.md). The webhook URL this server uses is a bearer
+credential for the whole portal.
+
 ## Support author
 
 <p align="center">

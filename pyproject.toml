@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "Universal, full-featured, portable MCP server for the Bitrix24 REST API (CRM, tasks, scrum, calendar, disk, users, messaging) — read and write."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Sergey Lebedev" }]
 keywords = ["mcp", "bitrix24", "bitrix", "crm", "rest", "model-context-protocol"]
 dependencies = [
@@ -24,6 +25,12 @@ dependencies = [
     "uvicorn>=0.30",
 ]
 
+[project.urls]
+Homepage = "https://github.com/john7ross/BitrixMCP"
+Repository = "https://github.com/john7ross/BitrixMCP"
+Issues = "https://github.com/john7ross/BitrixMCP/issues"
+Changelog = "https://github.com/john7ross/BitrixMCP/releases"
+
 [project.scripts]
 bitrix-mcp = "bitrix_mcp.__main__:main"
 
@@ -39,7 +46,7 @@ packages = ["src/bitrix_mcp"]
 artifacts = ["src/bitrix_mcp/data/catalog.json"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "scripts", "README.md", "*.md"]
+include = ["src", "tests", "scripts", "*.md", "LICENSE"]
 
 [tool.uv]
 package = true

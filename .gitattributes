@@ -1,0 +1,22 @@
+# Без этого файла содержимое зависит от настройки core.autocrlf на машине
+# разработчика: у одного в репозиторий уедет LF, у другого CRLF.
+
+# По умолчанию git сам решает, текст это или двоичное, и хранит текст с LF
+* text=auto
+
+# Скрипты и конфиги — всегда LF, их читают и на Linux
+*.py    text eol=lf
+*.sh    text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+*.lock  text eol=lf
+.env.example text eol=lf
+
+# Двоичное не трогать никогда
+*.png     binary
+*.jpg     binary
+*.ico     binary
+*.zip     binary
+*.whl     binary
+*.sqlite3 binary

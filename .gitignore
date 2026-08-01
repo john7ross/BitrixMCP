@@ -36,3 +36,4 @@ scripts/*.err
 # Documentation
 bitrix24-mcp-notes.md
 CONNECT.md
+release_v0.1.0.md

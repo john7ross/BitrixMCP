@@ -13,7 +13,7 @@ System_Boundary(mcp, "bitrix_mcp (Python package)") {
   ' ~ escapes the underscores: PlantUML reads __x__ as underline markup and
   ' would render the module name as an italic "main".
   Component(entry, "Entry point", "~__main~__.py / bitrix-mcp", "Parses transport flags; runs stdio or Streamable HTTP; starts the pull channel when enabled")
-  Component(server, "Server + tool registry", "FastMCP", "Holds instructions; imports 18 tool modules; exposes 99 tools; stamps the package version")
+  Component(server, "Server + tool registry", "MCPServer (mcp 2.x)", "Holds instructions; imports 18 tool modules; exposes 99 tools; reports the package version")
   Component(tools, "Tool modules", "tools/*.py", "Typed tools per domain: universal, discovery, crm, tasks, scrum, calendar, disk, users, groups, messaging, lists, catalog, sale, documents, bizproc, telephony, events, telegram")
   Component(runtime, "Runtime layer", "runtime.py", "Webhook resolution, read-only guard, JSON formatting, shared param types")
   Component(client, "Bitrix client", "client.py + httpx", "JSON POST calls, pagination, php_query for batch, error surfacing, write classifier")

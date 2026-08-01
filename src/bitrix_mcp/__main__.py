@@ -129,29 +129,33 @@ async def _serve_stdio(store) -> None:
         await mcp.run_stdio_async()
 
 
-async def _serve_http(store) -> None:
+async def _serve_http(store, host: str, port: int) -> None:
     """Serve Streamable HTTP, building uvicorn directly when TLS is requested.
 
     `mcp.run(transport="streamable-http")` constructs uvicorn.Config with only
     host/port/log_level - there is no way to pass a certificate through it. So
     when TLS is configured the app is taken and served here instead.
     """
+    # Stateless JSON responses scale better and avoid the fragile long-lived
+    # SSE sessions that plagued the previous deployment.
+    opts = {"json_response": True, "stateless_http": True}
+
     async with _pull_channel(store), _telegram_forwarder(store):
         if not (config.ssl_certfile and config.ssl_keyfile):
-            await mcp.run_streamable_http_async()
+            await mcp.run_streamable_http_async(host=host, port=port, **opts)
             return
 
         import uvicorn
 
         server = uvicorn.Server(uvicorn.Config(
-            mcp.streamable_http_app(),
-            host=mcp.settings.host,
-            port=mcp.settings.port,
-            log_level=mcp.settings.log_level.lower(),
+            mcp.streamable_http_app(**opts),
+            host=host,
+            port=port,
+            log_level="info",
             ssl_certfile=config.ssl_certfile,
             ssl_keyfile=config.ssl_keyfile,
         ))
-        log.info("serving https on %s:%s", mcp.settings.host, mcp.settings.port)
+        log.info("serving https on %s:%s", host, port)
         await server.serve()
 
 
@@ -191,13 +195,7 @@ def main() -> None:
                     "use BITRIX_PULL_CHANNEL=1 for events over stdio")
 
     if transport == "streamable-http":
-        mcp.settings.host = args.host
-        mcp.settings.port = args.port
-        # Stateless JSON responses scale better and avoid the fragile long-lived
-        # SSE session issues that plagued the previous deployment.
-        mcp.settings.json_response = True
-        mcp.settings.stateless_http = True
-        asyncio.run(_serve_http(store))
+        asyncio.run(_serve_http(store, args.host, args.port))
     else:
         asyncio.run(_serve_stdio(store))
 

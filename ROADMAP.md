@@ -62,7 +62,9 @@ created, verified, and deleted, nothing pre-existing touched).
   is already on the board — the working move is `deleteTask` then `addTask`.
 - **Release closeout audit (v0.1.0).** The whole surface was re-verified against
   the production portal, one domain at a time, and the sweep found twelve defects
-  that the previous "feature-complete" claim had shipped past. All are fixed:
+  that the previous "feature-complete" claim had shipped past. All are fixed —
+  and the SDK version pin that one of them forced was then removed by porting to
+  2.x rather than carried:
   - `b24_task_comments_list` returned `[]` for a task that demonstrably had
     comments. This portal keeps them in the task **chat**, not the legacy forum
     topic (`forumTopicId` is null), and the tool read only the forum — a write
@@ -118,6 +120,18 @@ created, verified, and deleted, nothing pre-existing touched).
     action, `tasks/*` catches them, and one task created + renamed + commented
     produced four counter messages against four useful ones. The `work` and
     `tasks` presets now exclude `*counter*`; `everything` deliberately does not.
+  - **Ported to the MCP SDK 2.x.** Rather than carry a pin, the server moved to
+    `mcp.server.mcpserver.MCPServer`. The change is smaller than the rename
+    suggests — one import line in each of 20 modules, five lines in `server.py`
+    and the transport wiring in `__main__.py`, where `mcp.settings` no longer
+    exists and host/port/stateless are passed to `run_streamable_http_async()`
+    instead of mutated globally. Two of those edits are improvements: `version`
+    is now a real constructor parameter, so the private `_mcp_server.version`
+    stamp is gone, and the entry point no longer mutates SDK global state.
+    Re-verified after the move: 132 tests twice, all five offline check
+    scripts, stdio and HTTP transports, the receiver fail-closed, the pull
+    channel and Telegram forwarder against live portal events, and a clean-venv
+    install of the rebuilt wheel calling the production portal.
   - **The built wheel could not be installed.** `mcp[cli]>=1.2.0` carried no
     upper bound, so a clean install resolved **mcp 2.0.0**, which replaced
     `mcp.server.fastmcp` with `mcp.server.mcpserver` — the package failed at
@@ -155,10 +169,6 @@ created, verified, and deleted, nothing pre-existing touched).
 
 ## Possible future work (not committed)
 
-- **Port to the MCP SDK 2.x API.** The dependency is bounded to `mcp<2` because
-  2.0 replaced `mcp.server.fastmcp` with `mcp.server.mcpserver`. Staying on 1.x
-  is fine for now, but the bound is a deadline, not a resting place: the port
-  should happen before 1.x stops receiving fixes.
 - Typed wrappers for open lines and mail if daily demand appears.
 - A cursor helper for very large exports beyond the page cap.
 - Optional API-key auth in front of the HTTP transport.

@@ -5,7 +5,7 @@
 title Bitrix24 MCP - end-to-end call flow (b24_crm_list)
 
 actor "MCP client" as C
-participant "FastMCP transport" as T
+participant "MCP transport" as T
 participant "Tool (crm.py)" as TL
 participant "runtime.run_list" as R
 participant "BitrixClient" as B

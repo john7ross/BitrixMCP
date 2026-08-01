@@ -1,11 +1,11 @@
-"""FastMCP server instance and tool registration for the Bitrix24 gateway."""
+"""MCP server instance and tool registration for the Bitrix24 gateway."""
 
 from __future__ import annotations
 
 import importlib
 from importlib.metadata import PackageNotFoundError, version as _dist_version
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 try:
     # Single source of truth: pyproject.toml, read through the installed
@@ -33,13 +33,11 @@ Errors are returned verbatim (never hidden as empty results): watch for
 `code: "B24_READONLY"` (write blocked by read-only mode).
 """
 
-mcp = FastMCP("bitrix24_mcp", instructions=INSTRUCTIONS)
-
-# FastMCP does not forward a version to the low-level server, so every client
-# saw the MCP SDK's version in `serverInfo` (1.28.1) and had no way to learn
-# which build of THIS server it was talking to. Confirmed over Streamable HTTP
-# before the fix.
-mcp._mcp_server.version = __version__
+# `version` is what clients read as `serverInfo.version`. Passing it matters:
+# the 1.x FastMCP had no such parameter, so every client saw the MCP SDK's own
+# version instead and could not tell which build of THIS server it was talking
+# to.
+mcp = MCPServer("bitrix24_mcp", instructions=INSTRUCTIONS, version=__version__)
 
 
 _TOOL_MODULES = (

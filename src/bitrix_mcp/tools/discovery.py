@@ -16,7 +16,7 @@ from ..runtime import READ, PersonalWebhook, WebhookUrl, err, get_client, ok
 from ..server import mcp
 
 try:
-    from mcp.server.fastmcp import Context
+    from mcp.server.mcpserver import Context
 except Exception:  # pragma: no cover
     Context = Any  # type: ignore
 

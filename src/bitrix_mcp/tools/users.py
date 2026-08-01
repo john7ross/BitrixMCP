@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Annotated, Optional
 
 from pydantic import Field
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 from ..config import config
 from ..runtime import (

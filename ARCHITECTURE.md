@@ -18,9 +18,9 @@ queue, the history archive, poller cursors and agent-adjustable settings. See
 | Concern | Choice | Why |
 |---|---|---|
 | Language | Python ≥ 3.10 | Compact REST wrapper; broad portability |
-| MCP framework | `mcp[cli]` (official SDK, FastMCP) | Decorator tools, schema generation, both transports |
+| MCP framework | `mcp[cli]` 2.x (`mcp.server.mcpserver.MCPServer`) | Decorator tools, schema generation, both transports |
 | HTTP | `httpx` (async) | Async client, timeouts, redirects |
-| Validation | Pydantic v2 (via FastMCP) | Field constraints + auto JSON schema |
+| Validation | Pydantic v2 (via the SDK) | Field constraints + auto JSON schema |
 | Packaging | Hatchling + uv | `bitrix-mcp` console entry point; installable wheel/sdist |
 | Diagrams | PlantUML (C4 stdlib) | Renders offline |
 
@@ -30,13 +30,13 @@ See [docs/diagrams/bitrix_mcp_component.png](docs/diagrams/bitrix_mcp_component.
 (source: [component.puml](docs/diagrams/component.puml)).
 
 - **Entry point** (`__main__.py`) — parses `--transport/--http/--host/--port`
-  (and `BITRIX_*` env), then runs FastMCP over **stdio** or **Streamable HTTP**
+  (and `BITRIX_*` env), then runs the server over **stdio** or **Streamable HTTP**
   (stateless JSON). These are the two shipped front-ends of the same server.
-- **Server + registry** (`server.py`) — the `FastMCP("bitrix24_mcp")` instance
+- **Server + registry** (`server.py`) — the `MCPServer("bitrix24_mcp")` instance
   carrying the server instructions; imports the 18 tool modules via `importlib`
-  so their `@mcp.tool` decorators register all 99 tools. It also stamps the
-  package version onto the low-level server, which FastMCP otherwise leaves as
-  the SDK's own.
+  so their `@mcp.tool` decorators register all 99 tools. It passes the package
+  version to `MCPServer(version=...)`, so clients read this server's version in
+  `serverInfo` rather than the SDK's.
 - **Tool modules** (`tools/*.py`) — one module per domain (universal, discovery,
   crm, tasks, scrum, calendar, disk, users, groups, messaging, lists, catalog,
   sale, documents, bizproc, telephony, events, telegram). Each tool is a thin,
@@ -80,7 +80,7 @@ See [docs/diagrams/bitrix_mcp_component.png](docs/diagrams/bitrix_mcp_component.
 See [docs/diagrams/bitrix_mcp_sequence.png](docs/diagrams/bitrix_mcp_sequence.png)
 (source: [sequence.puml](docs/diagrams/sequence.puml)).
 
-1. Client sends `tools/call`; FastMCP validates arguments against the tool's
+1. Client sends `tools/call`; the SDK validates arguments against the tool's
    generated schema and injects `Context`.
 2. The tool calls `run_call`/`run_list` with a REST method and params.
 3. Runtime resolves the webhook (`personal_webhook` > `webhook_url` >

@@ -18,9 +18,9 @@ MCP-инструментов. Его основная задача: превра
 | Аспект | Выбор | Почему |
 |---|---|---|
 | Язык | Python ≥ 3.10 | Компактная обёртка REST; широкая переносимость |
-| MCP-фреймворк | `mcp[cli]` (официальный SDK, FastMCP) | Декораторы-инструменты, генерация схем, оба транспорта |
+| MCP-фреймворк | `mcp[cli]` 2.x (`mcp.server.mcpserver.MCPServer`) | Декораторы-инструменты, генерация схем, оба транспорта |
 | HTTP | `httpx` (async) | Асинхронный клиент, таймауты, редиректы |
-| Валидация | Pydantic v2 (через FastMCP) | Ограничения полей + авто JSON-схема |
+| Валидация | Pydantic v2 (через SDK) | Ограничения полей + авто JSON-схема |
 | Упаковка | Hatchling + uv | Консольная точка входа `bitrix-mcp`; устанавливаемые wheel/sdist |
 | Диаграммы | PlantUML (stdlib C4) | Рендерится офлайн |
 
@@ -30,13 +30,13 @@ MCP-инструментов. Его основная задача: превра
 (исходник: [component.puml](docs/diagrams/component.puml)).
 
 - **Точка входа** (`__main__.py`) — разбирает `--transport/--http/--host/--port`
-  (и env `BITRIX_*`), затем запускает FastMCP по **stdio** или **Streamable
+  (и env `BITRIX_*`), затем запускает сервер по **stdio** или **Streamable
   HTTP** (stateless JSON). Это два поставляемых фронта одного сервера.
-- **Сервер + реестр** (`server.py`) — экземпляр `FastMCP("bitrix24_mcp")` с
+- **Сервер + реестр** (`server.py`) — экземпляр `MCPServer("bitrix24_mcp")` с
   инструкциями сервера; импортирует 18 модулей инструментов через `importlib`,
   чтобы их декораторы `@mcp.tool` зарегистрировали все 99 инструментов. Он же
-  проставляет низкоуровневому серверу версию пакета — иначе FastMCP оставляет
-  там версию самого SDK.
+  передаёт версию пакета в `MCPServer(version=...)`, поэтому в `serverInfo`
+  клиенты видят версию этого сервера, а не SDK.
 - **Модули инструментов** (`tools/*.py`) — по модулю на домен (universal,
   discovery, crm, tasks, scrum, calendar, disk, users, groups, messaging, lists,
   catalog, sale, documents, bizproc, telephony, events, telegram). Каждый
@@ -81,7 +81,7 @@ MCP-инструментов. Его основная задача: превра
 См. [docs/diagrams/bitrix_mcp_sequence.png](docs/diagrams/bitrix_mcp_sequence.png)
 (исходник: [sequence.puml](docs/diagrams/sequence.puml)).
 
-1. Клиент шлёт `tools/call`; FastMCP валидирует аргументы по сгенерированной
+1. Клиент шлёт `tools/call`; SDK валидирует аргументы по сгенерированной
    схеме инструмента и инжектит `Context`.
 2. Инструмент вызывает `run_call`/`run_list` с REST-методом и параметрами.
 3. Runtime резолвит вебхук (`personal_webhook` > `webhook_url` > заголовок

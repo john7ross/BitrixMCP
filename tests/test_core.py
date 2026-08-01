@@ -203,20 +203,25 @@ def test_scrum_move_removes_from_the_board_before_placing(monkeypatch):
 
 
 def test_server_reports_its_own_version_not_the_sdk_version():
-    """FastMCP does not forward a version, so `serverInfo.version` used to be the
-    MCP SDK's (1.28.1). Read from the installed metadata, never hardcoded here."""
+    """`serverInfo.version` must be this package's, read from the installed
+    metadata and never hardcoded here.
+
+    Under the 1.x FastMCP there was no `version` parameter at all, so clients
+    saw the SDK's own version (1.28.1) and could not tell which build they were
+    talking to. MCPServer takes it directly.
+    """
     from importlib.metadata import version
 
     from bitrix_mcp.server import mcp
 
     expected = version("bitrix-mcp")
-    assert mcp._mcp_server.version == expected
-    assert not expected.startswith("1.")  # would mean the SDK version leaked back
+    assert mcp.version == expected
+    assert version("mcp") != expected  # the SDK's version must not leak back in
 
 
 def test_every_tool_excludes_context_from_schema():
     from bitrix_mcp.server import mcp
     tools = asyncio.run(mcp.list_tools())
     for t in tools:
-        props = t.inputSchema.get("properties", {})
+        props = t.input_schema.get("properties", {})
         assert "ctx" not in props, f"{t.name} leaks ctx into its schema"

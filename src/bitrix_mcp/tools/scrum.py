@@ -6,26 +6,26 @@ Encodes the hard-won correct flow (previous wrapper got this wrong):
 * ``tasks.api.scrum.sprint.list`` must be filtered by ``STATUS:"active"`` or it
   may never reach the current sprint due to pagination.
 
-**Reading and writing a task's column are two separate traps, both confirmed
-live against a production portal — and the fix is asymmetric:**
+**Reading and writing a task's column are two separate traps, both established
+by watching a production board rather than by trusting API responses — every
+call involved reports success regardless of what happened:**
 
-* **Write:** ``tasks.task.update`` with ``STAGE_ID`` is accepted with no
-  error and the new value reads back correctly, but for a task on an active
-  sprint it does **not** relocate the card on the real board (reload the page
-  and it's still in the old column). The board-aware write is
-  ``tasks.api.scrum.kanban.addTask`` — use ``b24_scrum_task_move`` for that,
-  never ``b24_task_update``.
-* **Read:** once a task has been moved the *correct* way (``kanban.addTask``,
-  or a real drag on the board), its ``tasks.task.STAGE_ID`` goes stale and
-  stops tracking the board at all — confirmed by moving a task twice via
-  ``kanban.addTask`` and observing ``STAGE_ID`` never change, with no
-  replication delay. There is no documented ``tasks.api.scrum.kanban.*``
-  method to list which tasks are actually in a given stage (only
-  ``addTask``/``deleteTask``/``getStages``/``getFields`` exist). **Filtering
-  ``b24_tasks_list`` by ``STAGE_ID`` is therefore not reliable for a sprint
-  board** — treat it as approximate at best, accurate only for tasks whose
-  stage was last touched via ``tasks.task.add``/``.update`` and never moved
-  through the real board afterward.
+* **Write:** no single call moves a card. ``tasks.task.update`` with
+  ``STAGE_ID`` changes the field and writes a history entry everyone can see,
+  yet the card stays put. ``kanban.addTask`` only *places* a card that is off
+  the board; for one already in a column it returns ``true`` and does nothing.
+  ``task.stages.movetask`` returns ``false`` (it governs the plain group
+  kanban). What works is ``kanban.deleteTask`` then ``kanban.addTask`` — see
+  ``b24_scrum_task_move``, which does exactly that and is lossless.
+* **Read:** ``tasks.task.STAGE_ID`` cannot be trusted on a sprint board — it
+  read ``0`` while the card was visibly in the target column, and tasks carry
+  stage ids left over from previous sprints. There is no documented
+  ``tasks.api.scrum.kanban.*`` method listing which tasks are in a stage, and
+  ``tasks.api.scrum.task.get`` exposes the sprint (``entityId``), story points
+  and sort order but **no column at all**. **Filtering ``b24_tasks_list`` by
+  ``STAGE_ID`` is therefore not reliable for a sprint board.** The pull
+  channel is the dependable read: ``tasks / task_update`` carries
+  ``BEFORE.STAGE``, ``AFTER.STAGE`` and ``AFTER.STAGE_INFO``.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from __future__ import annotations
 from typing import Annotated, Optional
 
 from pydantic import Field
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 from ..runtime import (
     READ,

@@ -7,7 +7,7 @@ Read **and** write. Not tied to any one application — it's a generic Bitrix24
 gateway that any MCP client or agent can mount (Claude Code, Claude Desktop,
 Cursor, Windsurf, Cline, or your own Python/Node agent).
 
-- **Language:** Python + FastMCP (official MCP SDK)
+- **Language:** Python + the official MCP SDK (`mcp.server.mcpserver`, 2.x)
 - **Transports:** `stdio` (default, most portable/reliable) and **Streamable HTTP**
   (stateless JSON — no fragile long-lived SSE bridge)
 - **Coverage:** universal `b24_call` / `b24_batch` reach **100%** of the REST API;

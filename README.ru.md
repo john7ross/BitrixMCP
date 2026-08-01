@@ -8,7 +8,7 @@ generic-шлюз к Bitrix24, который может подключить л�
 (Claude Code, Claude Desktop, Cursor, Windsurf, Cline или собственный код на
 Python/Node).
 
-- **Язык:** Python + FastMCP (официальный MCP SDK)
+- **Язык:** Python + официальный MCP SDK (`mcp.server.mcpserver`, 2.x)
 - **Транспорты:** `stdio` (по умолчанию, максимально переносимый и надёжный) и
   **Streamable HTTP** (stateless JSON — без хрупкого долгоживущего SSE-моста)
 - **Покрытие:** универсальные `b24_call` / `b24_batch` дают **100%** REST API;

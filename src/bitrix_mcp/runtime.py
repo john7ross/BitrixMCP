@@ -17,7 +17,7 @@ from .config import config
 from .sanitize import sanitize
 
 try:  # Context is only needed for HTTP header support; import defensively.
-    from mcp.server.fastmcp import Context
+    from mcp.server.mcpserver import Context
 except Exception:  # pragma: no cover
     Context = Any  # type: ignore
 

@@ -29,7 +29,7 @@ from ..server import mcp
 from .events import get_store
 
 try:
-    from mcp.server.fastmcp import Context
+    from mcp.server.mcpserver import Context
 except Exception:  # pragma: no cover
     Context = Any  # type: ignore
 

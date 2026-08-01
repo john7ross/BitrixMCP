@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Optional
 
 from pydantic import Field
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 from ..client import BitrixError, is_write_method
 from ..runtime import (

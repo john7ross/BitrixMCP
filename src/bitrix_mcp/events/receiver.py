@@ -3,7 +3,7 @@
 Split in two on purpose:
   * `handle_delivery` - pure function, no web framework. All the logic that can
     be wrong lives here and is unit-tested without a server.
-  * `register` - thin Starlette glue, mounted on the FastMCP app via
+  * `register` - thin Starlette glue, mounted on the MCP server's app via
     `mcp.custom_route`. Only called by the HTTP transport.
 
 Delivery contract (from the official docs): POST,
@@ -72,7 +72,7 @@ def handle_delivery(raw_body: bytes, expected_token: str | None,
 
 
 def register(mcp: Any, store: EventStore, path: str, token_getter) -> None:
-    """Mount the receiver on the FastMCP Starlette app (HTTP transport only).
+    """Mount the receiver on the MCP server's Starlette app (HTTP transport only).
 
     `token_getter` is a callable rather than a value so the token is re-read
     from the environment on every delivery - matching how Config works.

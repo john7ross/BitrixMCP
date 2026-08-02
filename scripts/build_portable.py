@@ -23,6 +23,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 NAME = 'bitrix-mcp'
 
+# Windows x64: внутри лежит embeddable-питон именно под эту платформу,
+# и по имени файла в списке релиза это должно быть видно
+PLATFORM = 'win64'
+
+
+def version() -> str:
+    """
+    Версия пакета — из pyproject, а не второй копией здесь.
+
+    Returns:
+        Строка версии
+    """
+    import tomllib
+
+    data = tomllib.loads((ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+    return data['project']['version']
+
 PYTHON_VERSION = '3.11.9'
 RUNTIME_URL = (f'https://www.python.org/ftp/python/{PYTHON_VERSION}/'
                f'python-{PYTHON_VERSION}-embed-amd64.zip')
@@ -216,7 +233,7 @@ def main() -> int:
     (build / 'ЧИТАЙ МЕНЯ.txt').write_bytes(
         READ_ME.replace('\n', '\r\n').encode('utf-8-sig'))
 
-    archive = ROOT / 'dist' / f'{NAME}-portable.zip'
+    archive = ROOT / 'dist' / f'{NAME}-{version()}-portable-{PLATFORM}.zip'
     archive.parent.mkdir(exist_ok=True)
     if archive.exists():
         archive.unlink()

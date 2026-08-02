@@ -36,6 +36,12 @@ fixed *by design*, not patched around:
 | Moving a task on a **Scrum sprint board** has no single API call, and every obvious candidate fails while reporting success: `tasks.task.update`'s `STAGE_ID` changes the field and writes a history entry everyone can see, but the card stays put; `kanban.addTask` only *places* a card that is off the board and answers `true` without doing anything for one already in a column; `task.stages.movetask` answers `false`. | `b24_scrum_task_move` takes the card off the board and puts it back at the target column (`kanban.deleteTask` → `kanban.addTask`) — verified by watching a real board, not by trusting the response. It also warns that `STAGE_ID` cannot verify the result: it read `0` while the card was visibly in the target column. |
 
 ## Install
+**If nothing is installed on the machine**, take the portable archive
+(`dist/bitrix-mcp-portable.zip`, built by `python scripts/build_portable.py`).
+It carries its own Python and every library — no uv, no pip, no PyPI access.
+Unzip it and run the bundled launcher.
+
+From source:
 
 ```bash
 uv sync                       # create venv + install
